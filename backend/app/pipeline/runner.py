@@ -147,36 +147,42 @@ async def backfill_summaries():
 
 
 async def run_x_pipeline():
+    """Fetch X/Twitter articles and store immediately without summarization.
+
+    Summaries are handled later by backfill_summaries() to avoid Ollama contention
+    with the main pipeline.
+    """
     logger.info("X pipeline started")
     async with async_session_factory() as session:
         scraper = XApiScraper(session)
         try:
             results = await scraper.fetch()
             if not results:
+                logger.info("X pipeline: no new tweets found")
                 return
             new_articles = await filter_new(session, results)
-            async with httpx.AsyncClient() as client:
-                for raw in new_articles:
-                    try:
-                        result = await summarize(client, raw.raw_content, raw.title)
-                        session.add(
-                            Article(
-                                url=raw.url,
-                                url_hash=url_hash(raw.url),
-                                title=raw.title,
-                                source=raw.source,
-                                authors=raw.authors,
-                                published_at=raw.published_at,
-                                raw_content=raw.raw_content,
-                                summary=result.get("summary"),
-                                tags=result.get("tags", []),
-                                source_meta=raw.source_meta,
-                                is_summarized=True,
-                            )
-                        )
-                        await asyncio.sleep(0.5)
-                    except Exception as e:
-                        logger.error(f"X pipeline: summarization failed for {raw.url}: {e}")
+            if not new_articles:
+                logger.info("X pipeline: all articles already exist")
+                return
+
+            for raw in new_articles:
+                session.add(
+                    Article(
+                        url=raw.url,
+                        url_hash=url_hash(raw.url),
+                        title=raw.title,
+                        source=raw.source,
+                        authors=raw.authors,
+                        published_at=raw.published_at,
+                        raw_content=raw.raw_content,
+                        summary=None,
+                        tags=[],
+                        source_meta=raw.source_meta,
+                        is_summarized=False,
+                    )
+                )
+
             await session.commit()
+            logger.info(f"X pipeline: stored {len(new_articles)} articles")
         except Exception as e:
             logger.error(f"X pipeline failed: {e}")

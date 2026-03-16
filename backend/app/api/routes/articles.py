@@ -37,7 +37,7 @@ async def list_articles(
         except ValueError:
             pass
     else:
-        cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=24)
+        cutoff = datetime.now(tz=timezone.utc) - timedelta(days=7)
         stmt = stmt.where(Article.published_at >= cutoff)
 
     if q:
