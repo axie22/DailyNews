@@ -1,7 +1,10 @@
 *.env
 backend/__pycache__
+backend/app/pipeline/__pycache__
 backend/.venv
 backend/migrations
 
 frontend/node_modules
 logs/
+
+frontend/.next

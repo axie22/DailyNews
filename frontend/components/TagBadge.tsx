@@ -8,21 +8,32 @@ const TAG_COLORS: Record<string, string> = {
   Robotics: "bg-orange-100 text-orange-700",
   Diffusion: "bg-pink-100 text-pink-700",
   Audio: "bg-cyan-100 text-cyan-700",
-  Theory: "bg-gray-100 text-gray-700",
+  Theory: "bg-gray-200 text-gray-700",
   Infrastructure: "bg-slate-100 text-slate-700",
   Dataset: "bg-teal-100 text-teal-700",
   Benchmark: "bg-lime-100 text-lime-700",
   Other: "bg-gray-100 text-gray-500",
 };
 
-export default function TagBadge({ tag, onClick }: { tag: string; onClick?: () => void }) {
+interface TagBadgeProps {
+  tag: string;
+  count?: number;
+  onClick?: () => void;
+}
+
+export default function TagBadge({ tag, count, onClick }: TagBadgeProps) {
   const color = TAG_COLORS[tag] ?? "bg-gray-100 text-gray-600";
   return (
-    <button
+    <span
       onClick={onClick}
-      className={`px-2 py-0.5 rounded text-xs font-medium ${color} ${onClick ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${color} ${
+        onClick ? "cursor-pointer hover:opacity-80" : "cursor-default"
+      }`}
     >
       {tag}
-    </button>
+      {count !== undefined && (
+        <span className="opacity-50 text-[10px]">{count}</span>
+      )}
+    </span>
   );
 }

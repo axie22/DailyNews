@@ -17,7 +17,7 @@ Given a paper abstract or article excerpt, return a JSON object with:
 Return only valid JSON. No markdown fences. No preamble."""
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+@retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=8))
 async def summarize(client: httpx.AsyncClient, raw_content: str, title: str) -> dict:
     resp = await client.post(
         f"{settings.ollama_base_url}/api/chat",
@@ -30,11 +30,27 @@ async def summarize(client: httpx.AsyncClient, raw_content: str, title: str) -> 
                 {"role": "user", "content": f"Title: {title}\n\nContent: {raw_content[:1500]}"},
             ],
         },
-        timeout=60.0,
+        timeout=120.0,
     )
     resp.raise_for_status()
     content = resp.json()["message"]["content"]
-    # Strip any <think>...</think> block in case thinking mode wasn't fully disabled
+    return _parse_json(content)
+
+
+def _parse_json(content: str) -> dict:
+    """Extract JSON from LLM output, handling common formatting issues."""
     import re
+    # Strip <think>...</think> blocks
     content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
-    return json.loads(content)
+    # Strip markdown code fences
+    content = re.sub(r"^```(?:json)?\s*\n?", "", content)
+    content = re.sub(r"\n?```\s*$", "", content)
+    content = content.strip()
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        # Try to find a JSON object in the response
+        match = re.search(r"\{.*\}", content, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        raise
