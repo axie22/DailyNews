@@ -25,6 +25,7 @@ class Article(Base):
     tags: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
     source_meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     is_summarized: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_recommended: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
 
     __table_args__ = (
         Index("ix_articles_source", "source"),

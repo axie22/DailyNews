@@ -7,6 +7,7 @@ export interface Article {
   published_at: string;
   url: string;
   authors: string[] | null;
+  is_recommended: boolean | null;
 }
 
 export interface ArticleDetail extends Article {
@@ -28,4 +29,5 @@ export interface ArticleQueryParams {
   offset?: string;
   since?: string;
   q?: string;
+  recommended?: string;
 }

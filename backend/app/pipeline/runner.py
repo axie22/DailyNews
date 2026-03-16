@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from app.database import async_session_factory
 from app.models import Article, PipelineRun
 from app.pipeline.dedup import filter_new, url_hash
+from app.pipeline.recommender import recommend_articles
 from app.pipeline.summarizer import summarize
 from app.scrapers.arxiv import ArxivScraper
 from app.scrapers.huggingface import HFPapersScraper
@@ -102,6 +103,9 @@ async def run_pipeline():
 
     # Phase 2: Summarize via Ollama (decoupled — articles are already safely committed)
     await backfill_summaries()
+
+    # Phase 3: LLM recommends the most interesting articles
+    await recommend_articles()
 
 
 async def backfill_summaries():

@@ -14,6 +14,7 @@ export default function FeedPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [availableTags, setAvailableTags] = useState<[string, number][]>([]);
   const [search, setSearch] = useState("");
+  const [recommended, setRecommended] = useState(false);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -39,6 +40,7 @@ export default function FeedPage() {
         source: source || undefined,
         tags: selectedTags.length ? selectedTags.join(",") : undefined,
         q: debouncedSearch || undefined,
+        recommended: recommended ? "true" : undefined,
         limit: String(LIMIT),
         offset: String(currentOffset),
       });
@@ -57,13 +59,13 @@ export default function FeedPage() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [source, selectedTags, debouncedSearch, offset]);
+  }, [source, selectedTags, debouncedSearch, recommended, offset]);
 
   useEffect(() => {
     setOffset(0);
     fetchArticles(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, selectedTags, debouncedSearch]);
+  }, [source, selectedTags, debouncedSearch, recommended]);
 
   useEffect(() => {
     getTags().then(setAvailableTags).catch(console.error);
@@ -83,9 +85,10 @@ export default function FeedPage() {
     setSelectedTags([]);
     setSearch("");
     setDebouncedSearch("");
+    setRecommended(false);
   };
 
-  const hasFilters = source !== "" || selectedTags.length > 0 || search !== "";
+  const hasFilters = source !== "" || selectedTags.length > 0 || search !== "" || recommended;
 
   return (
     <div>
@@ -94,9 +97,11 @@ export default function FeedPage() {
         selectedTags={selectedTags}
         availableTags={availableTags}
         search={search}
+        recommended={recommended}
         onSourceChange={setSource}
         onTagToggle={toggleTag}
         onSearchChange={handleSearchChange}
+        onRecommendedToggle={() => setRecommended((prev) => !prev)}
         onClearFilters={clearFilters}
         hasFilters={hasFilters}
       />
@@ -150,7 +155,9 @@ export default function FeedPage() {
             {hasFilters ? "0" : "--"}
           </div>
           <p className="text-sm text-gray-500 mb-1">
-            {hasFilters
+            {recommended
+              ? "No recommended articles yet. Recommendations are generated after summarization."
+              : hasFilters
               ? "No articles match your filters."
               : "No articles yet. The pipeline may still be running."}
           </p>

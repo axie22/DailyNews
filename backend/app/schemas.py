@@ -13,6 +13,7 @@ class ArticleBase(BaseModel):
     published_at: datetime
     url: str
     authors: list[str] | None
+    is_recommended: bool | None
 
     model_config = {"from_attributes": True}
 

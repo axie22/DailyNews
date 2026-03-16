@@ -19,9 +19,13 @@ async def list_articles(
     offset: int = 0,
     since: str | None = None,
     q: str | None = None,
+    recommended: bool | None = None,
     session: AsyncSession = Depends(get_session),
 ):
     stmt = select(Article)
+
+    if recommended is not None and recommended:
+        stmt = stmt.where(Article.is_recommended == True)  # noqa: E712
 
     if source:
         stmt = stmt.where(Article.source == source)
