@@ -20,6 +20,8 @@ services:
     platform: linux/arm64
     ports:
       - "11434:11434"
+    environment:
+      - OLLAMA_NUM_PARALLEL=2
     volumes:
       - ollama_data:/root/.ollama
 

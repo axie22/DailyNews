@@ -30,3 +30,33 @@ export async function getTags(): Promise<[string, number][]> {
   if (!res.ok) return [];
   return res.json();
 }
+
+export interface PipelineStatusResponse {
+  phase: string;
+  elapsed_s: number | null;
+  eta_s: number | null;
+  ollama_status: string;
+  unsummarized_count: number;
+  scrape: {
+    articles_fetched: number;
+    articles_stored: number;
+  };
+  summarization: {
+    total: number;
+    done: number;
+    failures: number;
+    batch: string;
+    last_batch_s: number;
+    avg_batch_s: number;
+  };
+  recommendation: {
+    recommended: number;
+  };
+  recent_errors: string[];
+}
+
+export async function getPipelineStatus(): Promise<PipelineStatusResponse> {
+  const res = await fetch(`${API_BASE}/api/pipeline/status`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch pipeline status");
+  return res.json();
+}

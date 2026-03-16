@@ -52,7 +52,12 @@ async def list_articles(
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await session.execute(count_stmt)).scalar_one()
 
-    stmt = stmt.order_by(Article.published_at.desc()).limit(limit).offset(offset)
+    # When filtering by recommended, sort by score (best first) then recency
+    if recommended:
+        stmt = stmt.order_by(Article.relevance_score.desc(), Article.published_at.desc())
+    else:
+        stmt = stmt.order_by(Article.published_at.desc())
+    stmt = stmt.limit(limit).offset(offset)
     result = await session.execute(stmt)
     articles = result.scalars().all()
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import ArticleCard from "@/components/ArticleCard";
 import FilterBar from "@/components/FilterBar";
+import PipelineStatus from "@/components/PipelineStatus";
 import SkeletonCard from "@/components/SkeletonCard";
 import { getArticles, getTags } from "@/lib/api";
 import type { Article } from "@/types/article";
@@ -92,6 +93,7 @@ export default function FeedPage() {
 
   return (
     <div>
+      <PipelineStatus />
       <FilterBar
         source={source}
         selectedTags={selectedTags}
