@@ -5,7 +5,7 @@
 #   1. Copies .env.example → .env if .env is missing
 #   2. docker compose up -d  (postgres + ollama + frontend)
 #   3. Waits for postgres to pass its healthcheck
-#   4. Pulls qwen3:8b into Ollama if not already present
+#   4. Pulls qwen3:4b into Ollama if not already present
 #   5. Installs/syncs backend Python deps (uv)
 #   6. Runs Alembic migrations (alembic upgrade head)
 #   7. Starts the FastAPI backend  (uvicorn, hot-reload)
@@ -98,9 +98,9 @@ echo ""
 ok "Postgres is ready"
 
 # ─────────────────────────────────────────────────────────────────────────────
-step "4 / 7  Ollama model (qwen3:8b)"
+step "4 / 7  Ollama model (qwen3:4b)"
 # ─────────────────────────────────────────────────────────────────────────────
-OLLAMA_MODEL="${OLLAMA_MODEL:-qwen3:8b}"
+OLLAMA_MODEL="${OLLAMA_MODEL:-qwen3:4b}"
 
 # Wait briefly for ollama HTTP server to come up before checking models
 sleep 3
