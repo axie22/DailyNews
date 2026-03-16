@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from app.database import async_session_factory
 from app.models import Article, PipelineRun
 from app.pipeline.dedup import filter_new, url_hash
-from app.pipeline.recommender import recommend_articles
+from app.pipeline.recommender import recommend_batch, recommend_remaining
 from app.pipeline.summarizer import summarize
 from app.scrapers.arxiv import ArxivScraper
 from app.scrapers.huggingface import HFPapersScraper
@@ -101,15 +101,16 @@ async def run_pipeline():
 
     logger.info(f"Pipeline complete: {articles_stored} stored in {duration_ms}ms")
 
-    # Phase 2: Summarize via Ollama (decoupled — articles are already safely committed)
-    await backfill_summaries()
+    # Phase 2: Summarize + recommend interleaved
+    # After each summary batch is committed, run a recommendation pass on
+    # whatever has been summarized so far. This way recommendations appear
+    # progressively instead of waiting for all summaries to finish.
+    await summarize_and_recommend()
 
-    # Phase 3: LLM recommends the most interesting articles
-    await recommend_articles()
 
-
-async def backfill_summaries():
-    """Summarize all articles that don't have summaries yet."""
+async def summarize_and_recommend():
+    """Interleave summarization and recommendation so recommendations
+    appear as soon as summaries are available."""
     async with async_session_factory() as session:
         result = await session.execute(
             select(func.count())
@@ -117,22 +118,27 @@ async def backfill_summaries():
             .where(Article.is_summarized == False)  # noqa: E712
         )
         total_unsummarized = result.scalar_one()
-        if total_unsummarized == 0:
-            return
 
-        logger.info(f"Backfill: {total_unsummarized} unsummarized articles")
+    if total_unsummarized == 0:
+        # No new summaries needed, but there might be summarized articles
+        # that haven't been recommended yet (e.g., from a previous partial run)
+        async with httpx.AsyncClient() as client:
+            if await _ollama_available(client, retries=2):
+                await recommend_remaining(client)
+        return
+
+    logger.info(f"Summarize+Recommend: {total_unsummarized} articles to process")
 
     async with httpx.AsyncClient() as client:
-        # Wait for Ollama to be ready (handles cold starts)
         if not await _ollama_available(client):
-            logger.warning("Backfill: Ollama unavailable, will retry next run")
+            logger.warning("Ollama unavailable, will retry next run")
             return
 
         summarized = 0
         failures = 0
-        max_failures = 5  # stop after 5 consecutive failures
+        max_failures = 5
+        batches_since_recommend = 0
 
-        # Process in batches to avoid holding a long transaction
         while True:
             async with async_session_factory() as session:
                 result = await session.execute(
@@ -164,21 +170,31 @@ async def backfill_summaries():
                                 f"Backfill: {max_failures} consecutive failures, stopping"
                             )
                             await session.commit()
-                            logger.info(
-                                f"Backfill partial: {summarized} summarized, {failures} failed"
-                            )
-                            return
+                            break
 
                 await session.commit()
+                batches_since_recommend += 1
 
-    logger.info(f"Backfill complete: {summarized} summarized, {failures} failed")
+                if consecutive_failures >= max_failures:
+                    break
+
+            # After every summary batch, run one recommendation pass
+            # so recommendations appear progressively
+            await recommend_batch(client)
+
+        # Final pass: recommend any remaining summarized articles
+        await recommend_remaining(client)
+
+    logger.info(
+        f"Summarize+Recommend complete: {summarized} summarized, {failures} failed"
+    )
 
 
 async def run_x_pipeline():
     """Fetch X/Twitter articles and store immediately without summarization.
 
-    Summaries are handled later by backfill_summaries() to avoid Ollama contention
-    with the main pipeline.
+    Summaries are handled later by summarize_and_recommend() to avoid Ollama
+    contention with the main pipeline.
     """
     logger.info("X pipeline started")
     async with async_session_factory() as session:

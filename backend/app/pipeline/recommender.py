@@ -27,80 +27,69 @@ Recommend roughly 20-30% of the articles — be selective but not too strict.
 Return ONLY a JSON array of integers, e.g. [0, 2, 5, 8]. No explanation."""
 
 
-async def recommend_articles():
-    """Score recent summarized articles and mark the best ones as recommended.
+async def recommend_batch(client: httpx.AsyncClient) -> int:
+    """Evaluate one batch of summarized-but-not-yet-recommended articles.
 
-    Uses a nullable is_recommended field:
-      NULL  = not yet evaluated
-      True  = recommended
-      False = evaluated, not recommended
+    Returns the number of articles evaluated (0 means nothing left to do).
+    Designed to be called repeatedly, interleaved with summarization.
     """
     cutoff = datetime.now(tz=timezone.utc) - timedelta(days=7)
 
-    async with httpx.AsyncClient() as client:
-        from app.pipeline.runner import _ollama_available
-
-        if not await _ollama_available(client, retries=2):
-            logger.warning("Recommender: Ollama unavailable, will retry next run")
-            return
-
-        # Process in batches of 20
-        total_recommended = 0
-        total_evaluated = 0
-
-        while True:
-            async with async_session_factory() as session:
-                result = await session.execute(
-                    select(Article)
-                    .where(
-                        Article.is_summarized == True,  # noqa: E712
-                        Article.is_recommended.is_(None),
-                        Article.published_at >= cutoff,
-                    )
-                    .order_by(Article.published_at.desc())
-                    .limit(20)
-                )
-                batch = result.scalars().all()
-                if not batch:
-                    break
-
-                logger.info(f"Recommender: evaluating batch of {len(batch)} articles")
-
-                # Build the article list for the LLM
-                article_list = []
-                for i, article in enumerate(batch):
-                    summary = article.summary or article.title
-                    article_list.append(f"[{i}] {article.title}\n    {summary}")
-
-                prompt = "\n\n".join(article_list)
-
-                try:
-                    recommended_indices = await _get_recommendations(client, prompt)
-
-                    for i, article in enumerate(batch):
-                        article.is_recommended = i in recommended_indices
-
-                    batch_recommended = len(recommended_indices & set(range(len(batch))))
-                    total_recommended += batch_recommended
-                    total_evaluated += len(batch)
-
-                    await session.commit()
-                    logger.info(
-                        f"Recommender: {batch_recommended}/{len(batch)} recommended in this batch"
-                    )
-
-                except Exception as e:
-                    logger.warning(f"Recommender batch failed: {e}")
-                    # Mark batch as not-recommended so we don't retry the same batch forever
-                    for article in batch:
-                        article.is_recommended = False
-                    await session.commit()
-                    break
-
-        if total_evaluated > 0:
-            logger.info(
-                f"Recommender complete: {total_recommended}/{total_evaluated} recommended"
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(Article)
+            .where(
+                Article.is_summarized == True,  # noqa: E712
+                Article.is_recommended.is_(None),
+                Article.published_at >= cutoff,
             )
+            .order_by(Article.published_at.desc())
+            .limit(20)
+        )
+        batch = result.scalars().all()
+        if not batch:
+            return 0
+
+        logger.info(f"Recommender: evaluating batch of {len(batch)} articles")
+
+        article_list = []
+        for i, article in enumerate(batch):
+            summary = article.summary or article.title
+            article_list.append(f"[{i}] {article.title}\n    {summary}")
+
+        prompt = "\n\n".join(article_list)
+
+        try:
+            recommended_indices = await _get_recommendations(client, prompt)
+
+            recommended_count = 0
+            for i, article in enumerate(batch):
+                article.is_recommended = i in recommended_indices
+                if article.is_recommended:
+                    recommended_count += 1
+
+            await session.commit()
+            logger.info(f"Recommender: {recommended_count}/{len(batch)} recommended")
+            return len(batch)
+
+        except Exception as e:
+            logger.warning(f"Recommender batch failed: {e}")
+            for article in batch:
+                article.is_recommended = False
+            await session.commit()
+            return len(batch)
+
+
+async def recommend_remaining(client: httpx.AsyncClient):
+    """Drain all pending recommendation batches. Called after summarization is done."""
+    total = 0
+    while True:
+        evaluated = await recommend_batch(client)
+        if evaluated == 0:
+            break
+        total += evaluated
+    if total > 0:
+        logger.info(f"Recommender: finished evaluating all {total} remaining articles")
 
 
 async def _get_recommendations(client: httpx.AsyncClient, article_list: str) -> set[int]:
