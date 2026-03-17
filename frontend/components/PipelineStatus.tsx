@@ -57,7 +57,7 @@ export default function PipelineStatus() {
   // Warning state: idle but Ollama unavailable with pending articles
   if (!isActive && (hasWarning || hasErrors)) {
     return (
-      <div className="mb-4 border border-amber-200 bg-amber-50 rounded-xl overflow-hidden">
+      <div className="mb-4 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 rounded-xl overflow-hidden">
         <button
           onClick={() => setExpanded(!expanded)}
           className="w-full px-4 py-2.5 flex items-center gap-3 text-left hover:bg-amber-100/50 transition-colors"
@@ -126,7 +126,7 @@ export default function PipelineStatus() {
 
   // Active pipeline state (blue banner)
   return (
-    <div className="mb-4 border border-blue-200 bg-blue-50 rounded-xl overflow-hidden">
+    <div className="mb-4 border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 rounded-xl overflow-hidden">
       {/* Compact bar */}
       <button
         onClick={() => setExpanded(!expanded)}

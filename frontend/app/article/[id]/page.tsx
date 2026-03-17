@@ -1,13 +1,8 @@
 import Link from "next/link";
-import { getArticle } from "@/lib/api";
+import { getArticle, getRelated } from "@/lib/api";
 import TagBadge from "@/components/TagBadge";
-
-const SOURCE_LABELS: Record<string, string> = {
-  arxiv: "arXiv",
-  huggingface: "Hugging Face",
-  rss: "RSS",
-  x: "X (Twitter)",
-};
+import SourceBadge from "@/components/SourceBadge";
+import ArticleCard from "@/components/ArticleCard";
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("en-US", {
@@ -19,10 +14,10 @@ function formatDate(dateStr: string) {
 }
 
 function scoreLabel(score: number): { text: string; color: string } {
-  if (score >= 9) return { text: "Groundbreaking", color: "text-emerald-700 bg-emerald-50 border-emerald-200" };
-  if (score >= 7) return { text: "Notable", color: "text-blue-700 bg-blue-50 border-blue-200" };
-  if (score >= 5) return { text: "Incremental", color: "text-amber-700 bg-amber-50 border-amber-200" };
-  return { text: "Niche", color: "text-gray-500 bg-gray-50 border-gray-200" };
+  if (score >= 9) return { text: "Groundbreaking", color: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950 dark:border-emerald-800" };
+  if (score >= 7) return { text: "Notable", color: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950 dark:border-blue-800" };
+  if (score >= 5) return { text: "Incremental", color: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950 dark:border-amber-800" };
+  return { text: "Niche", color: "text-gray-500 bg-gray-50 border-gray-200 dark:text-gray-400 dark:bg-gray-800 dark:border-gray-700" };
 }
 
 function ScoreBadge({ score }: { score: number | null }) {
@@ -40,12 +35,16 @@ function ScoreBadge({ score }: { score: number | null }) {
 
 export default async function ArticlePage({ params }: { params: { id: string } }) {
   let article;
+  let related;
   try {
-    article = await getArticle(params.id);
+    [article, { articles: related }] = await Promise.all([
+      getArticle(params.id),
+      getRelated(params.id),
+    ]);
   } catch {
     return (
-      <div className="text-center py-16 text-gray-500">
-        <div className="text-gray-300 text-4xl mb-3">?</div>
+      <div className="text-center py-16 text-gray-500 dark:text-gray-400">
+        <div className="text-gray-300 dark:text-gray-600 text-4xl mb-3">?</div>
         <p className="text-sm mb-2">Article not found.</p>
         <Link href="/" className="text-sm text-blue-500 hover:underline">
           Back to feed
@@ -60,7 +59,7 @@ export default async function ArticlePage({ params }: { params: { id: string } }
     <div className="max-w-2xl mx-auto">
       <Link
         href="/"
-        className="text-xs text-gray-400 hover:text-gray-600 mb-5 inline-flex items-center gap-1 transition-colors"
+        className="text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 mb-5 inline-flex items-center gap-1 transition-colors"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -68,35 +67,33 @@ export default async function ArticlePage({ params }: { params: { id: string } }
         Back to feed
       </Link>
 
-      <article className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+      <article className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm">
         {/* Header */}
         <div className="px-6 pt-6 pb-4">
           <div className="flex items-center gap-2 mb-3 text-xs">
-            <span className="font-semibold text-gray-600">
-              {SOURCE_LABELS[article.source] ?? article.source}
-            </span>
-            <span className="text-gray-300">&middot;</span>
-            <span className="text-gray-400">{formatDate(article.published_at)}</span>
+            <SourceBadge source={article.source} />
+            <span className="text-gray-300 dark:text-gray-600">&middot;</span>
+            <span className="text-gray-400 dark:text-gray-500">{formatDate(article.published_at)}</span>
             <div className="ml-auto">
               <ScoreBadge score={article.relevance_score} />
             </div>
           </div>
 
-          <h1 className="text-xl font-bold leading-snug tracking-tight mb-3">
+          <h1 className="text-xl font-bold leading-snug tracking-tight mb-3 dark:text-gray-100">
             {article.title}
           </h1>
 
           {article.authors && article.authors.length > 0 && (
-            <p className="text-sm text-gray-500 mb-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
               {article.authors.join(", ")}
             </p>
           )}
 
           {/* X/Twitter engagement metrics */}
           {article.source === "x" && meta && (
-            <div className="flex items-center gap-4 text-xs text-gray-500 py-2.5 px-3.5 bg-gray-50 rounded-lg border border-gray-100">
+            <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 py-2.5 px-3.5 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
               {meta.author && (
-                <span className="font-medium text-gray-700">@{String(meta.author)}</span>
+                <span className="font-medium text-gray-700 dark:text-gray-200">@{String(meta.author)}</span>
               )}
               {typeof meta.likes === "number" && (
                 <span className="flex items-center gap-1">
@@ -122,7 +119,7 @@ export default async function ArticlePage({ params }: { params: { id: string } }
         {(article.key_contribution || article.why_it_matters) && (
           <div className="mx-6 mb-3 flex flex-col gap-2">
             {article.key_contribution && (
-              <span className="inline-flex items-center gap-1.5 self-start text-xs font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded-md px-2.5 py-1">
+              <span className="inline-flex items-center gap-1.5 self-start text-xs font-medium text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-950 border border-violet-200 dark:border-violet-800 rounded-md px-2.5 py-1">
                 <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
@@ -130,7 +127,7 @@ export default async function ArticlePage({ params }: { params: { id: string } }
               </span>
             )}
             {article.why_it_matters && (
-              <p className="text-sm font-medium text-gray-700">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
                 {article.why_it_matters}
               </p>
             )}
@@ -139,15 +136,15 @@ export default async function ArticlePage({ params }: { params: { id: string } }
 
         {/* Summary */}
         {article.summary ? (
-          <div className="mx-6 mb-4 bg-blue-50/70 border border-blue-100 rounded-lg p-4">
-            <div className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-1.5">
+          <div className="mx-6 mb-4 bg-blue-50/70 dark:bg-blue-950 border border-blue-100 dark:border-blue-800 rounded-lg p-4">
+            <div className="text-[10px] font-semibold text-blue-400 dark:text-blue-500 uppercase tracking-wider mb-1.5">
               TL;DR
             </div>
-            <p className="text-[14px] text-gray-700 leading-relaxed">{article.summary}</p>
+            <p className="text-[14px] text-gray-700 dark:text-gray-200 leading-relaxed">{article.summary}</p>
           </div>
         ) : (
-          <div className="mx-6 mb-4 bg-gray-50 border border-gray-100 rounded-lg p-4">
-            <p className="text-sm text-gray-400 italic">Summary is being generated...</p>
+          <div className="mx-6 mb-4 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg p-4">
+            <p className="text-sm text-gray-400 dark:text-gray-500 italic">Summary is being generated...</p>
           </div>
         )}
 
@@ -161,15 +158,15 @@ export default async function ArticlePage({ params }: { params: { id: string } }
         )}
 
         {/* Divider */}
-        <div className="border-t border-gray-100 mx-6" />
+        <div className="border-t border-gray-100 dark:border-gray-800 mx-6" />
 
         {/* Raw content */}
         {article.raw_content && (
           <div className="p-6">
-            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
+            <div className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">
               {article.source === "x" ? "Full Tweet" : "Abstract / Excerpt"}
             </div>
-            <div className="text-[14px] text-gray-600 leading-[1.7] whitespace-pre-line">
+            <div className="text-[14px] text-gray-600 dark:text-gray-300 leading-[1.7] whitespace-pre-line">
               {article.raw_content}
             </div>
           </div>
@@ -181,7 +178,7 @@ export default async function ArticlePage({ params }: { params: { id: string } }
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg text-sm font-medium hover:bg-gray-700 dark:hover:bg-gray-300 transition-colors"
           >
             Read original
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -190,12 +187,26 @@ export default async function ArticlePage({ params }: { params: { id: string } }
           </a>
 
           {!article.is_summarized && (
-            <span className="text-[11px] text-gray-400">
+            <span className="text-[11px] text-gray-400 dark:text-gray-500">
               Summary pending &mdash; generated periodically.
             </span>
           )}
         </div>
       </article>
+
+      {/* Related articles */}
+      {related.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4">
+            Related
+          </h2>
+          <div className="space-y-2">
+            {related.map((r) => (
+              <ArticleCard key={r.id} article={r} compact />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -25,6 +25,12 @@ export async function getArticle(id: string): Promise<ArticleDetail> {
   return res.json();
 }
 
+export async function getRelated(id: string): Promise<ArticleListResponse> {
+  const res = await fetch(`${API_BASE}/api/articles/${id}/related?limit=3`, { cache: "no-store" });
+  if (!res.ok) return { total: 0, articles: [] };
+  return res.json();
+}
+
 export async function getTags(): Promise<[string, number][]> {
   const res = await fetch(`${API_BASE}/api/articles/tags`, { next: { revalidate: 300 } });
   if (!res.ok) return [];

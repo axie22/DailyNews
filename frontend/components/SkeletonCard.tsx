@@ -1,6 +1,6 @@
 export default function SkeletonCard() {
   return (
-    <div className="border border-gray-200 rounded-xl p-4 bg-white">
+    <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-gray-900">
       <div className="flex items-center gap-2 mb-2.5">
         <div className="skeleton w-12 h-3" />
         <div className="skeleton w-1 h-1 rounded-full" />

@@ -33,4 +33,5 @@ export interface ArticleQueryParams {
   since?: string;
   q?: string;
   recommended?: string;
+  digest?: string;
 }

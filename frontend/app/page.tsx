@@ -7,6 +7,7 @@ import PipelineStatus from "@/components/PipelineStatus";
 import SkeletonCard from "@/components/SkeletonCard";
 import TopPicks from "@/components/TopPicks";
 import { getArticles, getTags } from "@/lib/api";
+import { useSeen } from "@/lib/useSeen";
 import type { Article } from "@/types/article";
 
 export default function FeedPage() {
@@ -23,6 +24,8 @@ export default function FeedPage() {
   const [error, setError] = useState<string | null>(null);
   const [picks, setPicks] = useState<Article[]>([]);
   const LIMIT = 20;
+
+  const { seenIds, markSeen } = useSeen();
 
   // Debounce search input
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -106,6 +109,7 @@ export default function FeedPage() {
   };
 
   const hasFilters = source !== "" || selectedTags.length > 0 || search !== "" || recommended;
+  const newCount = articles.filter((a) => !seenIds.has(a.id)).length;
 
   return (
     <div>
@@ -130,24 +134,29 @@ export default function FeedPage() {
         hasFilters={hasFilters}
       />
 
-      {/* Results count */}
+      {/* Results count + new indicator */}
       {!loading && !error && (
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-gray-400">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-gray-400 dark:text-gray-500">
             {total} article{total !== 1 ? "s" : ""}
             {hasFilters ? " matching filters" : ""}
           </span>
+          {newCount > 0 && newCount < articles.length && (
+            <span className="text-xs font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950 dark:border-emerald-800 px-2 py-0.5 rounded-full">
+              {newCount} new
+            </span>
+          )}
         </div>
       )}
 
       {/* Error state */}
       {error && (
         <div className="text-center py-16">
-          <div className="text-gray-300 text-4xl mb-3">!</div>
-          <p className="text-sm text-gray-500 mb-3">{error}</p>
+          <div className="text-gray-300 dark:text-gray-600 text-4xl mb-3">!</div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{error}</p>
           <button
             onClick={() => fetchArticles(true)}
-            className="px-4 py-1.5 bg-gray-900 text-white rounded-full text-sm hover:bg-gray-700"
+            className="px-4 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-full text-sm hover:bg-gray-700 dark:hover:bg-gray-300"
           >
             Retry
           </button>
@@ -167,7 +176,12 @@ export default function FeedPage() {
       {!loading && !error && articles.length > 0 && (
         <div className="space-y-2.5">
           {articles.map((a) => (
-            <ArticleCard key={a.id} article={a} />
+            <ArticleCard
+              key={a.id}
+              article={a}
+              isSeen={seenIds.has(a.id)}
+              onClickTitle={() => markSeen([a.id])}
+            />
           ))}
         </div>
       )}
@@ -175,10 +189,10 @@ export default function FeedPage() {
       {/* Empty state */}
       {!loading && !error && articles.length === 0 && (
         <div className="text-center py-16">
-          <div className="text-gray-300 text-4xl mb-3">
+          <div className="text-gray-300 dark:text-gray-600 text-4xl mb-3">
             {hasFilters ? "0" : "--"}
           </div>
-          <p className="text-sm text-gray-500 mb-1">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
             {recommended
               ? "No recommended articles yet. Recommendations appear after summarization."
               : hasFilters
@@ -202,7 +216,7 @@ export default function FeedPage() {
           <button
             onClick={() => fetchArticles(false)}
             disabled={loadingMore}
-            className="px-6 py-2 bg-gray-900 text-white rounded-full text-sm hover:bg-gray-700 disabled:opacity-50 transition-colors"
+            className="px-6 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-full text-sm hover:bg-gray-700 dark:hover:bg-gray-300 disabled:opacity-50 transition-colors"
           >
             {loadingMore ? (
               <span className="flex items-center gap-2">

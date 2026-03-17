@@ -42,7 +42,7 @@ export default function FilterBar({
       {/* Search */}
       <div className="relative">
         <svg
-          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -55,7 +55,7 @@ export default function FilterBar({
           placeholder="Search articles..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-gray-300 placeholder:text-gray-400 transition-all"
+          className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:focus:ring-gray-700 focus:border-gray-300 dark:focus:border-gray-600 placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all"
         />
       </div>
 
@@ -67,22 +67,22 @@ export default function FilterBar({
             onClick={() => onSourceChange(s.value)}
             className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
               source === s.value && !recommended
-                ? "bg-gray-900 text-white"
-                : "text-gray-500 hover:bg-gray-100"
+                ? "bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900"
+                : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
             }`}
           >
             {s.label}
           </button>
         ))}
 
-        <div className="w-px h-4 bg-gray-200 mx-1" />
+        <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1" />
 
         <button
           onClick={onRecommendedToggle}
           className={`px-3 py-1 rounded-lg text-xs font-medium transition-all flex items-center gap-1 ${
             recommended
               ? "bg-amber-500 text-white"
-              : "text-gray-500 hover:bg-amber-50"
+              : "text-gray-500 dark:text-gray-400 hover:bg-amber-50 dark:hover:bg-amber-950"
           }`}
         >
           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -94,7 +94,7 @@ export default function FilterBar({
         {hasFilters && (
           <button
             onClick={onClearFilters}
-            className="px-2 py-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            className="px-2 py-1 text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
           >
             Clear
           </button>
@@ -110,7 +110,7 @@ export default function FilterBar({
               onClick={() => onTagToggle(tag)}
               className={`transition-all ${
                 selectedTags.includes(tag)
-                  ? "ring-2 ring-gray-900 ring-offset-1 rounded"
+                  ? "ring-2 ring-gray-900 dark:ring-gray-100 ring-offset-1 dark:ring-offset-gray-950 rounded"
                   : "opacity-60 hover:opacity-100"
               }`}
             >
