@@ -37,6 +37,48 @@ Return a JSON object with an "articles" key containing the array of results.
 Example: {"articles": [{"index": 0, "summary": "...", "tags": ["LLMs"]}, ...]}"""
 
 
+def _using_groq() -> bool:
+    return bool(settings.groq_api_key)
+
+
+async def _llm_chat(
+    client: httpx.AsyncClient,
+    messages: list[dict],
+    max_tokens: int = 512,
+) -> str:
+    """Send a chat completion request to Groq or Ollama."""
+    if _using_groq():
+        resp = await client.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {settings.groq_api_key}"},
+            json={
+                "model": settings.groq_model,
+                "messages": messages,
+                "response_format": {"type": "json_object"},
+                "max_tokens": max_tokens,
+                "temperature": 0.3,
+            },
+            timeout=60.0,
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
+    else:
+        resp = await client.post(
+            f"{settings.ollama_base_url}/api/chat",
+            json={
+                "model": settings.ollama_model,
+                "stream": False,
+                "think": False,
+                "format": "json",
+                "options": {"num_predict": max_tokens},
+                "messages": messages,
+            },
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        return resp.json()["message"]["content"]
+
+
 async def summarize_batch(
     client: httpx.AsyncClient,
     articles: list[tuple[str, str]],
@@ -50,25 +92,16 @@ async def summarize_batch(
     prompt_len = len(prompt)
 
     t0 = time.monotonic()
-    resp = await client.post(
-        f"{settings.ollama_base_url}/api/chat",
-        json={
-            "model": settings.ollama_model,
-            "stream": False,
-            "think": False,
-            "format": "json",
-            "options": {"num_predict": 2048},
-            "messages": [
-                {"role": "system", "content": BATCH_SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-        },
-        timeout=180.0,
+    content = await _llm_chat(
+        client,
+        messages=[
+            {"role": "system", "content": BATCH_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=2048,
     )
     elapsed = time.monotonic() - t0
-    resp.raise_for_status()
 
-    content = resp.json()["message"]["content"]
     result = _parse_batch_json(content, len(articles))
 
     logger.info(
@@ -82,28 +115,19 @@ async def summarize_batch(
 async def summarize(client: httpx.AsyncClient, raw_content: str, title: str) -> dict:
     """Summarize a single article. Kept as fallback for individual retries."""
     t0 = time.monotonic()
-    resp = await client.post(
-        f"{settings.ollama_base_url}/api/chat",
-        json={
-            "model": settings.ollama_model,
-            "stream": False,
-            "think": False,
-            "format": "json",
-            "options": {"num_predict": 512},
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": f"Title: {title}\n\nContent: {raw_content[:1500]}"},
-            ],
-        },
-        timeout=120.0,
+    content = await _llm_chat(
+        client,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Title: {title}\n\nContent: {raw_content[:1500]}"},
+        ],
+        max_tokens=512,
     )
     elapsed = time.monotonic() - t0
-    resp.raise_for_status()
 
-    content = resp.json()["message"]["content"]
     result = _parse_json(content)
-
-    logger.info(f"Single summarize: {elapsed:.1f}s, title={title[:60]}")
+    backend = "groq" if _using_groq() else "ollama"
+    logger.info(f"Single summarize ({backend}): {elapsed:.1f}s, title={title[:60]}")
     return result
 
 

@@ -218,7 +218,11 @@ async def summarize_and_recommend():
     )
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
-        if not await _ollama_available(client):
+        from app.config import settings as cfg
+        if cfg.groq_api_key:
+            pipeline_status.ollama_status = "groq"
+            logger.info(f"Using Groq API ({cfg.groq_model}) for summarization")
+        elif not await _ollama_available(client):
             logger.warning("Ollama unavailable, will retry next run")
             return
 

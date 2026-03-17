@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://mlnews:mlnews@localhost:5432/mlnews"
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3:4b"
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
     pipeline_interval_hours: int = 6
     log_level: str = "INFO"
     x_bearer_token: str = ""

@@ -27,6 +27,7 @@ X_ACCOUNTS = [
     "ggerganov",
     "rasbt",
     "srush_nlp",
+    "nvidia"
 ]
 
 
