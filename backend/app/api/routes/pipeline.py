@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 
 from app.database import async_session_factory
 from app.models import Article
-from app.pipeline.runner import run_pipeline
+from app.pipeline.runner import run_pipeline, run_x_pipeline
 from app.pipeline.status import pipeline_status
 
 router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
@@ -13,6 +13,12 @@ router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 async def trigger_pipeline(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_pipeline)
     return {"status": "pipeline triggered"}
+
+
+@router.post("/trigger-x")
+async def trigger_x_pipeline(background_tasks: BackgroundTasks):
+    background_tasks.add_task(run_x_pipeline)
+    return {"status": "X pipeline triggered"}
 
 
 @router.get("/status")

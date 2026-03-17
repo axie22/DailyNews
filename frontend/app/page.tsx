@@ -18,6 +18,7 @@ export default function FeedPage() {
   const [availableTags, setAvailableTags] = useState<[string, number][]>([]);
   const [search, setSearch] = useState("");
   const [recommended, setRecommended] = useState(false);
+  const [minScore, setMinScore] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -57,6 +58,7 @@ export default function FeedPage() {
         tags: selectedTags.length ? selectedTags.join(",") : undefined,
         q: debouncedSearch || undefined,
         recommended: recommended ? "true" : undefined,
+        min_score: minScore > 0 ? String(minScore) : undefined,
         limit: String(LIMIT),
         offset: String(currentOffset),
       });
@@ -75,13 +77,13 @@ export default function FeedPage() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [source, selectedTags, debouncedSearch, recommended, offset]);
+  }, [source, selectedTags, debouncedSearch, recommended, minScore, offset]);
 
   useEffect(() => {
     setOffset(0);
     fetchArticles(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, selectedTags, debouncedSearch, recommended]);
+  }, [source, selectedTags, debouncedSearch, recommended, minScore]);
 
   useEffect(() => {
     getTags().then(setAvailableTags).catch(console.error);
@@ -106,9 +108,10 @@ export default function FeedPage() {
     setSearch("");
     setDebouncedSearch("");
     setRecommended(false);
+    setMinScore(0);
   };
 
-  const hasFilters = source !== "" || selectedTags.length > 0 || search !== "" || recommended;
+  const hasFilters = source !== "" || selectedTags.length > 0 || search !== "" || recommended || minScore > 0;
   const newCount = articles.filter((a) => !seenIds.has(a.id)).length;
 
   return (
@@ -126,10 +129,12 @@ export default function FeedPage() {
         availableTags={availableTags}
         search={search}
         recommended={recommended}
+        minScore={minScore}
         onSourceChange={setSource}
         onTagToggle={toggleTag}
         onSearchChange={handleSearchChange}
         onRecommendedToggle={() => setRecommended((prev) => !prev)}
+        onMinScoreChange={setMinScore}
         onClearFilters={clearFilters}
         hasFilters={hasFilters}
       />

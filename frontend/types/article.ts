@@ -34,4 +34,5 @@ export interface ArticleQueryParams {
   q?: string;
   recommended?: string;
   digest?: string;
+  min_score?: string;
 }

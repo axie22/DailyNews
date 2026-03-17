@@ -384,7 +384,9 @@ async def run_x_pipeline():
             if not results:
                 logger.info(f"X pipeline: no new tweets found ({elapsed:.1f}s)")
                 return
+            results = [r for r in results if r.url]  # safety check
             new_articles = await filter_new(session, results)
+            new_articles = await merge_by_arxiv_id(session, new_articles)
             if not new_articles:
                 logger.info(f"X pipeline: all articles already exist ({elapsed:.1f}s)")
                 return

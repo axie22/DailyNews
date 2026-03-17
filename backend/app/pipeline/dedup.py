@@ -46,7 +46,14 @@ async def filter_new(session: AsyncSession, raw_articles: list[RawArticle]) -> l
         select(Article.url_hash).where(Article.url_hash.in_(hashes))
     )
     existing_hashes = {row[0] for row in result}
-    return [a for a in raw_articles if url_hash(a.url) not in existing_hashes]
+    seen: set[str] = set()
+    unique: list[RawArticle] = []
+    for a in raw_articles:
+        h = url_hash(a.url)
+        if h not in existing_hashes and h not in seen:
+            seen.add(h)
+            unique.append(a)
+    return unique
 
 
 async def merge_by_arxiv_id(

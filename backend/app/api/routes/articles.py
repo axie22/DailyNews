@@ -21,6 +21,7 @@ async def list_articles(
     q: str | None = None,
     recommended: bool | None = None,
     digest: bool | None = None,
+    min_score: int | None = Query(default=None, ge=1, le=10),
     session: AsyncSession = Depends(get_session),
 ):
     stmt = select(Article)
@@ -60,6 +61,12 @@ async def list_articles(
     else:
         cutoff = datetime.now(tz=timezone.utc) - timedelta(days=7)
         stmt = stmt.where(Article.published_at >= cutoff)
+
+    if min_score is not None:
+        stmt = stmt.where(
+            Article.relevance_score.isnot(None),
+            Article.relevance_score >= min_score,
+        )
 
     if q:
         stmt = stmt.where(

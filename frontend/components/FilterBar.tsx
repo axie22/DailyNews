@@ -10,16 +10,25 @@ const SOURCES = [
   { value: "x", label: "X" },
 ];
 
+const SCORE_FILTERS = [
+  { value: 0, label: "Any score" },
+  { value: 7, label: "7+" },
+  { value: 8, label: "8+" },
+  { value: 9, label: "9+" },
+];
+
 interface FilterBarProps {
   source: string;
   selectedTags: string[];
   availableTags: [string, number][];
   search: string;
   recommended: boolean;
+  minScore: number;
   onSourceChange: (s: string) => void;
   onTagToggle: (tag: string) => void;
   onSearchChange: (q: string) => void;
   onRecommendedToggle: () => void;
+  onMinScoreChange: (s: number) => void;
   onClearFilters: () => void;
   hasFilters: boolean;
 }
@@ -30,10 +39,12 @@ export default function FilterBar({
   availableTags,
   search,
   recommended,
+  minScore,
   onSourceChange,
   onTagToggle,
   onSearchChange,
   onRecommendedToggle,
+  onMinScoreChange,
   onClearFilters,
   hasFilters,
 }: FilterBarProps) {
@@ -90,6 +101,22 @@ export default function FilterBar({
           </svg>
           Top Picks
         </button>
+
+        <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+        {SCORE_FILTERS.map((sf) => (
+          <button
+            key={sf.value}
+            onClick={() => onMinScoreChange(sf.value)}
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+              minScore === sf.value
+                ? "bg-blue-600 text-white"
+                : "text-gray-500 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-950"
+            }`}
+          >
+            {sf.label}
+          </button>
+        ))}
 
         {hasFilters && (
           <button
