@@ -6,5 +6,6 @@ backend/migrations
 
 frontend/node_modules
 logs/
+backend/data/
 
 frontend/.next
