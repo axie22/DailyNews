@@ -8,6 +8,8 @@ export interface Article {
   url: string;
   authors: string[] | null;
   relevance_score: number | null;
+  why_it_matters: string | null;
+  key_contribution: string | null;
   is_recommended: boolean | null;
 }
 

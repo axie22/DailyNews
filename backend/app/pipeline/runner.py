@@ -248,6 +248,12 @@ async def summarize_and_recommend():
                         score = result.get("relevance_score")
                         if isinstance(score, (int, float)) and 1 <= score <= 10:
                             article.relevance_score = int(score)
+                        why = result.get("why_it_matters")
+                        if isinstance(why, str) and why.strip():
+                            article.why_it_matters = why.strip()
+                        key = result.get("key_contribution")
+                        if isinstance(key, str) and key.strip():
+                            article.key_contribution = key.strip()
                         article.is_summarized = True
                         round_summarized += 1
                         consecutive_failures = 0

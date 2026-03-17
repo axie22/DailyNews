@@ -22,20 +22,23 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function ScoreBar({ score }: { score: number | null }) {
+function scoreLabel(score: number): { text: string; color: string } {
+  if (score >= 9) return { text: "Groundbreaking", color: "text-emerald-600 bg-emerald-50 border-emerald-200" };
+  if (score >= 7) return { text: "Notable", color: "text-blue-600 bg-blue-50 border-blue-200" };
+  if (score >= 5) return { text: "Incremental", color: "text-amber-600 bg-amber-50 border-amber-200" };
+  return { text: "Niche", color: "text-gray-500 bg-gray-50 border-gray-200" };
+}
+
+function ScoreIndicator({ score }: { score: number | null }) {
   if (score == null) return null;
-  const width = score * 10;
-  const color =
-    score >= 8 ? "bg-emerald-500" :
-    score >= 6 ? "bg-blue-500" :
-    score >= 4 ? "bg-amber-400" : "bg-gray-300";
+  const { text, color } = scoreLabel(score);
   return (
-    <div className="flex items-center gap-1.5" title={`Relevance: ${score}/10`}>
-      <div className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${width}%` }} />
-      </div>
-      <span className="text-[10px] text-gray-400 tabular-nums">{score}</span>
-    </div>
+    <span
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${color}`}
+      title={`Relevance: ${score}/10`}
+    >
+      {score}/10 &middot; {text}
+    </span>
   );
 }
 
@@ -62,19 +65,40 @@ export default function ArticleCard({ article }: { article: Article }) {
             </>
           )}
           <div className="ml-auto">
-            <ScoreBar score={article.relevance_score} />
+            <ScoreIndicator score={article.relevance_score} />
           </div>
         </div>
 
         {/* Row 2: title */}
         <Link href={`/article/${article.id}`}>
-          <h2 className="font-semibold text-[15px] leading-snug mb-1 group-hover:text-blue-600 transition-colors line-clamp-2">
+          <h2 className="font-semibold text-[15px] leading-snug mb-1.5 group-hover:text-blue-600 transition-colors line-clamp-2">
             {article.title}
           </h2>
         </Link>
 
-        {/* Row 3: summary */}
-        {hasSummary ? (
+        {/* Row 3: key contribution chip */}
+        {article.key_contribution && (
+          <div className="mb-1.5">
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded-md px-2 py-0.5">
+              <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              {article.key_contribution}
+            </span>
+          </div>
+        )}
+
+        {/* Row 4: why it matters or summary */}
+        {article.why_it_matters ? (
+          <div className="mb-2.5">
+            <p className="text-[13px] leading-relaxed">
+              <span className="font-semibold text-gray-700">{article.why_it_matters}</span>
+              {hasSummary && (
+                <span className="text-gray-400"> — {article.summary}</span>
+              )}
+            </p>
+          </div>
+        ) : hasSummary ? (
           <p className="text-[13px] text-gray-500 leading-relaxed line-clamp-2 mb-2.5">
             {article.summary}
           </p>
@@ -84,7 +108,7 @@ export default function ArticleCard({ article }: { article: Article }) {
           </p>
         )}
 
-        {/* Row 4: tags + link */}
+        {/* Row 5: tags + link */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex gap-1 flex-wrap min-w-0">
             {article.tags && article.tags.length > 0 ? (

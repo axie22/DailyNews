@@ -26,6 +26,8 @@ class Article(Base):
     source_meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     is_summarized: Mapped[bool] = mapped_column(Boolean, default=False)
     relevance_score: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
+    why_it_matters: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    key_contribution: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     is_recommended: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
 
     __table_args__ = (

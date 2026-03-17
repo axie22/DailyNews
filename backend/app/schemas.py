@@ -14,6 +14,8 @@ class ArticleBase(BaseModel):
     url: str
     authors: list[str] | None
     relevance_score: int | None
+    why_it_matters: str | None
+    key_contribution: str | None
     is_recommended: bool | None
 
     model_config = {"from_attributes": True}
