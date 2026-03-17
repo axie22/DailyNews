@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 
 from app.database import async_session_factory
 from app.models import Article, PipelineRun
-from app.pipeline.dedup import filter_new, url_hash
+from app.pipeline.dedup import filter_new, merge_by_arxiv_id, url_hash
 from app.pipeline.status import pipeline_status
 from app.pipeline.summarizer import summarize
 from app.scrapers.arxiv import ArxivScraper
@@ -144,9 +144,13 @@ async def run_pipeline():
                 pipeline_status.add_error(msg)
 
         new_articles = await filter_new(session, all_raw)
-        logger.info(f"Dedup: {len(all_raw)} -> {len(new_articles)} new")
+        logger.info(f"Dedup (URL): {len(all_raw)} -> {len(new_articles)} new")
+
+        new_articles = await merge_by_arxiv_id(session, new_articles)
+        logger.info(f"Dedup (arXiv): -> {len(new_articles)} after cross-source merge")
 
         for raw in new_articles:
+            from app.pipeline.arxiv_id import extract_arxiv_id
             session.add(
                 Article(
                     url=raw.url,
@@ -160,6 +164,7 @@ async def run_pipeline():
                     tags=[],
                     source_meta=raw.source_meta,
                     is_summarized=False,
+                    arxiv_id=raw.source_meta.get("arxiv_id") or extract_arxiv_id(raw.url),
                 )
             )
             articles_stored += 1

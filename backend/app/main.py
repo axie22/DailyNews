@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import articles, health, pipeline
+from app.api.routes.seen import router as seen_router
 from app.config import settings
 
 logging.basicConfig(
@@ -36,3 +37,4 @@ app.add_middleware(
 app.include_router(articles.router)
 app.include_router(health.router)
 app.include_router(pipeline.router)
+app.include_router(seen_router)

@@ -20,9 +20,26 @@ async def list_articles(
     since: str | None = None,
     q: str | None = None,
     recommended: bool | None = None,
+    digest: bool | None = None,
     session: AsyncSession = Depends(get_session),
 ):
     stmt = select(Article)
+
+    # Digest mode: top articles from last 24h by relevance score
+    if digest:
+        since_24h = datetime.now(tz=timezone.utc) - timedelta(hours=24)
+        stmt = (
+            stmt.where(
+                Article.is_summarized == True,  # noqa: E712
+                Article.published_at >= since_24h,
+                Article.relevance_score.isnot(None),
+            )
+            .order_by(Article.relevance_score.desc(), Article.published_at.desc())
+            .limit(limit)
+        )
+        result = await session.execute(stmt)
+        articles = result.scalars().all()
+        return ArticleListResponse(total=len(articles), articles=list(articles))
 
     if recommended is not None and recommended:
         stmt = stmt.where(Article.is_recommended == True)  # noqa: E712
@@ -52,7 +69,6 @@ async def list_articles(
     count_stmt = select(func.count()).select_from(stmt.subquery())
     total = (await session.execute(count_stmt)).scalar_one()
 
-    # When filtering by recommended, sort by score (best first) then recency
     if recommended:
         stmt = stmt.order_by(Article.relevance_score.desc(), Article.published_at.desc())
     else:
@@ -79,13 +95,45 @@ async def list_tags(session: AsyncSession = Depends(get_session)):
 
 @router.get("/{article_id}", response_model=ArticleDetail)
 async def get_article(article_id: str, session: AsyncSession = Depends(get_session)):
-    import uuid
+    import uuid as uuid_mod
     from fastapi import HTTPException
     try:
-        uid = uuid.UUID(article_id)
+        uid = uuid_mod.UUID(article_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid article ID")
     article = await session.get(Article, uid)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
     return article
+
+
+@router.get("/{article_id}/related", response_model=ArticleListResponse)
+async def get_related(
+    article_id: str,
+    limit: int = Query(default=3, le=10),
+    session: AsyncSession = Depends(get_session),
+):
+    import uuid as uuid_mod
+    from fastapi import HTTPException
+    try:
+        uid = uuid_mod.UUID(article_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid article ID")
+    target = await session.get(Article, uid)
+    if not target or not target.tags:
+        return ArticleListResponse(total=0, articles=[])
+
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(days=7)
+    result = await session.execute(
+        select(Article)
+        .where(
+            Article.id != uid,
+            Article.tags.overlap(target.tags),
+            Article.is_summarized == True,  # noqa: E712
+            Article.published_at >= cutoff,
+        )
+        .order_by(Article.relevance_score.desc().nullslast(), Article.published_at.desc())
+        .limit(limit)
+    )
+    related = result.scalars().all()
+    return ArticleListResponse(total=len(related), articles=list(related))

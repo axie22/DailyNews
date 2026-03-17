@@ -7,6 +7,13 @@ from app.scrapers.base import BaseScraper, RawArticle
 
 logger = logging.getLogger(__name__)
 
+def _is_meaningful_title(text: str) -> bool:
+    """Return False if the tweet is just a URL or has no substantive content."""
+    import re
+    stripped = re.sub(r"https?://\S+", "", text).strip()
+    return len(stripped) >= 20
+
+
 X_ACCOUNTS = [
     "_akhaliq",
     "hardmaru",
@@ -105,6 +112,10 @@ class XApiScraper(BaseScraper):
                 and "x.com" not in u["expanded_url"]
             ]
             if not external_urls:
+                continue
+
+            if not _is_meaningful_title(tweet.text):
+                logger.debug(f"Skipping low-content tweet {tweet.id}: {tweet.text[:60]}")
                 continue
 
             articles.append(

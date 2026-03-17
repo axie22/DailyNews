@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Index, Integer, String, Text, func
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.types import TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column
@@ -29,11 +29,16 @@ class Article(Base):
     why_it_matters: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     key_contribution: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     is_recommended: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
+    arxiv_id: Mapped[str | None] = mapped_column(String(20), nullable=True, default=None)
+    canonical_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("articles.id"), nullable=True, default=None
+    )
 
     __table_args__ = (
         Index("ix_articles_source", "source"),
         Index("ix_articles_published_at", "published_at"),
         Index("ix_articles_tags", "tags", postgresql_using="gin"),
+        Index("ix_articles_arxiv_id", "arxiv_id"),
     )
 
 
