@@ -4,18 +4,17 @@
 
 :root {
   --foreground-rgb: 15, 15, 15;
-  --background-rgb: 249, 250, 251;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: rgb(var(--background-rgb));
-  font-family: Inter, system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv11", "ss01";
+  letter-spacing: -0.011em;
 }
 
-/* Smooth scroll for anchor links */
 html {
   scroll-behavior: smooth;
 }
@@ -27,7 +26,7 @@ html {
 }
 
 .skeleton {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
   background-size: 400px 100%;
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: 4px;

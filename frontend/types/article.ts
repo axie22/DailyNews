@@ -7,6 +7,7 @@ export interface Article {
   published_at: string;
   url: string;
   authors: string[] | null;
+  relevance_score: number | null;
   is_recommended: boolean | null;
 }
 

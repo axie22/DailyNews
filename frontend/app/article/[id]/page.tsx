@@ -18,6 +18,23 @@ function formatDate(dateStr: string) {
   });
 }
 
+function ScoreBadge({ score }: { score: number | null }) {
+  if (score == null) return null;
+  const color =
+    score >= 8 ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
+    score >= 6 ? "bg-blue-100 text-blue-700 border-blue-200" :
+    score >= 4 ? "bg-amber-100 text-amber-700 border-amber-200" :
+    "bg-gray-100 text-gray-500 border-gray-200";
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border ${color}`}>
+      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+      </svg>
+      {score}/10
+    </span>
+  );
+}
+
 export default async function ArticlePage({ params }: { params: { id: string } }) {
   let article;
   try {
@@ -40,7 +57,7 @@ export default async function ArticlePage({ params }: { params: { id: string } }
     <div className="max-w-2xl mx-auto">
       <Link
         href="/"
-        className="text-xs text-gray-400 hover:text-gray-600 mb-4 inline-flex items-center gap-1 transition-colors"
+        className="text-xs text-gray-400 hover:text-gray-600 mb-5 inline-flex items-center gap-1 transition-colors"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -48,28 +65,33 @@ export default async function ArticlePage({ params }: { params: { id: string } }
         Back to feed
       </Link>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        {/* Header section */}
-        <div className="p-6 pb-0">
-          <div className="flex items-center gap-2 mb-3 text-xs text-gray-500">
-            <span className="font-semibold text-gray-700">
+      <article className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4">
+          <div className="flex items-center gap-2 mb-3 text-xs">
+            <span className="font-semibold text-gray-600">
               {SOURCE_LABELS[article.source] ?? article.source}
             </span>
-            <span className="text-gray-300">|</span>
-            <span>{formatDate(article.published_at)}</span>
-            {article.authors && article.authors.length > 0 && (
-              <>
-                <span className="text-gray-300">|</span>
-                <span className="truncate">{article.authors.join(", ")}</span>
-              </>
-            )}
+            <span className="text-gray-300">&middot;</span>
+            <span className="text-gray-400">{formatDate(article.published_at)}</span>
+            <div className="ml-auto">
+              <ScoreBadge score={article.relevance_score} />
+            </div>
           </div>
 
-          <h1 className="text-xl font-bold mb-4 leading-snug">{article.title}</h1>
+          <h1 className="text-xl font-bold leading-snug tracking-tight mb-3">
+            {article.title}
+          </h1>
+
+          {article.authors && article.authors.length > 0 && (
+            <p className="text-sm text-gray-500 mb-3">
+              {article.authors.join(", ")}
+            </p>
+          )}
 
           {/* X/Twitter engagement metrics */}
           {article.source === "x" && meta && (
-            <div className="flex items-center gap-4 text-xs text-gray-500 mb-4 py-2 px-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-4 text-xs text-gray-500 py-2.5 px-3.5 bg-gray-50 rounded-lg border border-gray-100">
               {meta.author && (
                 <span className="font-medium text-gray-700">@{String(meta.author)}</span>
               )}
@@ -95,11 +117,11 @@ export default async function ArticlePage({ params }: { params: { id: string } }
 
         {/* Summary */}
         {article.summary ? (
-          <div className="mx-6 mb-4 bg-blue-50 border border-blue-100 rounded-lg p-4">
+          <div className="mx-6 mb-4 bg-blue-50/70 border border-blue-100 rounded-lg p-4">
             <div className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider mb-1.5">
               TL;DR
             </div>
-            <p className="text-sm text-gray-700 leading-relaxed">{article.summary}</p>
+            <p className="text-[14px] text-gray-700 leading-relaxed">{article.summary}</p>
           </div>
         ) : (
           <div className="mx-6 mb-4 bg-gray-50 border border-gray-100 rounded-lg p-4">
@@ -122,17 +144,17 @@ export default async function ArticlePage({ params }: { params: { id: string } }
         {/* Raw content */}
         {article.raw_content && (
           <div className="p-6">
-            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+            <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
               {article.source === "x" ? "Full Tweet" : "Abstract / Excerpt"}
             </div>
-            <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
+            <div className="text-[14px] text-gray-600 leading-[1.7] whitespace-pre-line">
               {article.raw_content}
-            </p>
+            </div>
           </div>
         )}
 
-        {/* Footer action */}
-        <div className="px-6 pb-6">
+        {/* Footer */}
+        <div className="px-6 pb-6 flex items-center gap-3">
           <a
             href={article.url}
             target="_blank"
@@ -146,12 +168,12 @@ export default async function ArticlePage({ params }: { params: { id: string } }
           </a>
 
           {!article.is_summarized && (
-            <p className="text-[11px] text-gray-400 mt-3">
-              This article hasn&apos;t been summarized yet. Summaries are generated periodically.
-            </p>
+            <span className="text-[11px] text-gray-400">
+              Summary pending &mdash; generated periodically.
+            </span>
           )}
         </div>
-      </div>
+      </article>
     </div>
   );
 }

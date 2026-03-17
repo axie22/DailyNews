@@ -5,6 +5,7 @@ import ArticleCard from "@/components/ArticleCard";
 import FilterBar from "@/components/FilterBar";
 import PipelineStatus from "@/components/PipelineStatus";
 import SkeletonCard from "@/components/SkeletonCard";
+import TopPicks from "@/components/TopPicks";
 import { getArticles, getTags } from "@/lib/api";
 import type { Article } from "@/types/article";
 
@@ -20,6 +21,7 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [picks, setPicks] = useState<Article[]>([]);
   const LIMIT = 20;
 
   // Debounce search input
@@ -30,6 +32,16 @@ export default function FeedPage() {
     clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => setDebouncedSearch(q), 300);
   };
+
+  // Fetch top picks (recommended articles)
+  const fetchPicks = useCallback(async () => {
+    try {
+      const data = await getArticles({ recommended: "true", limit: "10" });
+      setPicks(data.articles);
+    } catch {
+      // Silent — picks are optional
+    }
+  }, []);
 
   const fetchArticles = useCallback(async (reset = false) => {
     if (reset) setLoading(true);
@@ -70,7 +82,11 @@ export default function FeedPage() {
 
   useEffect(() => {
     getTags().then(setAvailableTags).catch(console.error);
-    const interval = setInterval(() => fetchArticles(true), 10 * 60 * 1000);
+    fetchPicks();
+    const interval = setInterval(() => {
+      fetchArticles(true);
+      fetchPicks();
+    }, 10 * 60 * 1000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -94,6 +110,12 @@ export default function FeedPage() {
   return (
     <div>
       <PipelineStatus />
+
+      {/* Top Picks — always visible when available and not filtering */}
+      {!hasFilters && picks.length > 0 && !loading && (
+        <TopPicks articles={picks} />
+      )}
+
       <FilterBar
         source={source}
         selectedTags={selectedTags}
@@ -110,7 +132,7 @@ export default function FeedPage() {
 
       {/* Results count */}
       {!loading && !error && (
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <span className="text-xs text-gray-400">
             {total} article{total !== 1 ? "s" : ""}
             {hasFilters ? " matching filters" : ""}
@@ -141,9 +163,9 @@ export default function FeedPage() {
         </div>
       )}
 
-      {/* Articles list — single column for scannability */}
+      {/* Articles list */}
       {!loading && !error && articles.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {articles.map((a) => (
             <ArticleCard key={a.id} article={a} />
           ))}
@@ -158,7 +180,7 @@ export default function FeedPage() {
           </div>
           <p className="text-sm text-gray-500 mb-1">
             {recommended
-              ? "No recommended articles yet. Recommendations are generated after summarization."
+              ? "No recommended articles yet. Recommendations appear after summarization."
               : hasFilters
               ? "No articles match your filters."
               : "No articles yet. The pipeline may still be running."}
