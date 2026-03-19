@@ -200,6 +200,34 @@ echo ""
 ok "Frontend is up"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Auto-scrape if last scrape was 12+ hours ago
+# ─────────────────────────────────────────────────────────────────────────────
+SCRAPE_NEEDED=$(python3 -c "
+import json, urllib.request, sys
+from datetime import datetime, timezone, timedelta
+try:
+    url = 'http://localhost:8000/api/articles?limit=1'
+    data = json.loads(urllib.request.urlopen(url, timeout=5).read())
+    if not data['articles']:
+        print('yes'); sys.exit()
+    latest = datetime.fromisoformat(data['articles'][0]['published_at'].replace('Z','+00:00'))
+    age_hours = (datetime.now(timezone.utc) - latest).total_seconds() / 3600
+    # Also check scraped_at via pipeline runs if available
+    print('yes' if age_hours > 12 else 'no')
+except Exception as e:
+    print('yes')  # scrape if we can't tell
+" 2>/dev/null || echo "yes")
+
+if [[ "$SCRAPE_NEEDED" == "yes" ]]; then
+    log "Last scrape was 12+ hours ago (or no articles). Triggering all scrapers..."
+    curl -sf -X POST http://localhost:8000/api/pipeline/trigger > /dev/null 2>&1 || true
+    curl -sf -X POST http://localhost:8000/api/pipeline/trigger-x > /dev/null 2>&1 || true
+    ok "Pipelines triggered in background"
+else
+    ok "Recent articles found — skipping auto-scrape"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 echo ""
 ok "Stack is running. Press Ctrl+C to stop."
 echo ""
