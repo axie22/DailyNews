@@ -1,137 +1,68 @@
-# ML News Aggregator
+# DailyNews v2
 
-A personal ML news aggregator that runs a scheduled pipeline every 6 hours to scrape articles and papers from multiple sources, deduplicates them, summarizes them via a local Ollama model, stores them in Postgres, and serves them through a Next.js frontend styled like TLDR.
+A personal ML news triage bot. It pulls frontier-lab announcements, open-weight model releases, and a full day of arXiv. Each item gets classified with [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) for a fraction of a cent, ranked by a model that learns from your 👍/👎, and delivered to your phone on **Telegram**. It runs on **GitHub Actions** with no server and no laptop.
 
-## Tech Stack
+```
+hourly cron ─► sync 👍/👎 from Telegram ─► fetch due sources ─► dedup + cluster
+           ─► Jev: kind · topic · significance · substantive   (heuristic fallback)
+           ─► rank = prior + learned(your ratings) ─► quality floor + diversity caps
+           ─► ⚡ breaking push (lab releases, outside quiet hours)
+           ─► ☀️ morning digest (first run after 7:00 local, once a day)
+           ─► encrypted SQLite snapshot → orphan `data` branch
+```
 
-| Layer       | Technology                                    |
-| ----------- | --------------------------------------------- |
-| Scrapers    | Python 3.12, `httpx`, `feedparser`, `bs4`     |
-| Scheduler   | APScheduler (in-process)                      |
-| Summarizer  | Ollama HTTP API (`qwen3:8b`)                |
-| Database    | PostgreSQL 16 via `asyncpg` + SQLAlchemy 2    |
-| Backend API | FastAPI + Uvicorn                             |
-| Frontend    | Next.js 14 (App Router), TypeScript, Tailwind |
-| Dev env     | Docker Compose (Postgres + Ollama containers) |
+## What changed from v1
 
-## Sources
+| v1 | v2 |
+|---|---|
+| A generative LLM summarized *every* item | Jev only classifies (no text generation). Abstracts and descriptions are already summaries. |
+| A generic 1–10 "relevance" score, mostly 5s and 6s | Calibrated probabilities feed into your interest weights (`config/profile.yaml`) |
+| No learning | Logistic regression on your 👍/👎 phases in after 15 ratings (≥5 of each) |
+| Newest 50 arXiv papers (an arbitrary slice) | About 400/run, all triaged |
+| Anthropic feed silently broken | Listing pages scraped; any broken source shows up in the digest footer |
+| Postgres, Ollama, FastAPI, Next.js, local cron | One Python package, SQLite, GitHub Actions, Telegram |
 
-- **arXiv** — cs.LG, cs.AI, cs.CL categories (top 50 by submission date)
-- **Hugging Face Papers** — trending papers from huggingface.co/papers
-- **RSS Feeds** — OpenAI, Anthropic, DeepMind, Meta AI, BAIR, Reddit r/MachineLearning
-- **X/Twitter API** — curated list of high-signal ML accounts (optional, requires bearer token)
+**Cost:** about 200–500 items/day × about 500 tokens comes to roughly **$0.15–0.40/month** at Jev's Oct 2026 price ($0.042/M input, free output). The digest footer reports the actual spend.
 
-## Environment Setup Checklist
+## Setup (about 10 minutes)
+
+1. **Create the bot.** In Telegram, message [@BotFather](https://t.me/BotFather), send `/newbot`, and copy the token. Then send any message to your new bot.
+2. **Get your chat ID.**
+   ```bash
+   pip install -e . && TELEGRAM_BOT_TOKEN=... python -m dailynews chat-id
+   ```
+3. **Add repo secrets** (Settings → Secrets and variables → Actions):
+   - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+   - `TYPESAFE_API_KEY`
+   - `STATE_KEY`: any long random string (`openssl rand -base64 32`). **Required on a public repo**: it encrypts your ratings and history on the `data` branch.
+4. **Check everything.**
+   ```bash
+   TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... TYPESAFE_API_KEY=... python -m dailynews doctor --send-test
+   ```
+5. **Merge to the default branch.** Scheduled workflows only run there. Optionally trigger *Actions → dailynews → Run workflow* with `force_digest` checked.
+
+## Using it
+
+- **👍/👎** on any item trains the ranker. Taps are collected by the next hourly run (the buttons update to ✓ then). Telegram only holds taps for about 24h, which is why the workflow runs hourly.
+- **Tune** `config/profile.yaml`: topic weights, digest size, quality floor (`min_score`), quiet hours, and breaking thresholds. Editing a topic *description* or kind changes the Jev question set. Your rated items then get re-classified automatically (cost: pennies) so the ranker retrains on consistent features. Weight changes need no re-classification.
+- **Sources** are in `config/sources.yaml`. Each has its own polling interval.
+- **Local dry run:** `python -m dailynews run --dry-run --force-digest` prints messages instead of sending them.
+
+## Design notes and edge cases
+
+- **Lab priority is deterministic.** It comes from the source (an official blog, an HF org, an HF Daily Papers organization), never from a model guessing affiliation from abstract text.
+- **Dedup and clustering.** Items are merged by arXiv ID (arXiv ↔ HF Papers, which also carries upvotes and lab attribution over), by HF release family (`-Instruct`, `-FP8`, `-GGUF`… collapse into one item), and by near-identical headlines across different sources.
+- **First run.** A source's *undated* back catalogue (the scraped Anthropic pages) is stored as already seen, so you don't get flooded. Dated items are bounded by `max_age_days`.
+- **No double sends.** State is saved even when a run fails (`if: always()`), runs never overlap (`concurrency`), and the save step refuses to push if the restore didn't succeed. A bad `STATE_KEY` can't wipe your history.
+- **Jev outages.** 429/5xx are retried with `Retry-After`. Auth errors trip a circuit breaker, and the run continues on a keyword heuristic. Heuristic labels are replaced on the next healthy run and are never used as training data.
+- **Pinned model.** `JEV_MODEL` defaults to `jev-1.13.0`, not `jev-latest`, because the ranker learns from Jev's output distribution. To upgrade, set the `JEV_MODEL` repo variable. Rated items aren't auto-re-classified on a model change, so expect a few days of drift.
+- **Breaking pushes** require a frontier-lab source, P(release) ≥ 0.6, real significance, and age under 12h. They're capped per run, suppressed in quiet hours, and skipped when the digest is about to go out.
+- **Quality floor.** On a slow day the digest is short rather than padded.
+- **GitHub Actions caveats.** Scheduled runs can start late at busy times, and GitHub disables schedules on repos with 60 days of no activity. The hourly state push should count as activity, but if the digest ever stops, check the Actions tab. Reddit often blocks Actions IPs; if so, the footer will say so.
+
+## Development
 
 ```bash
-# 1. Start infra
-docker compose up -d postgres ollama
-
-# 2. Pull the summarization model
-docker compose exec ollama ollama pull qwen3:8b
-
-# 3. Install backend deps
-cd backend && uv sync
-
-# 4. Copy and configure environment
-cp backend/.env.example backend/.env
-# Edit backend/.env — set X_BEARER_TOKEN if using X/Twitter scraper
-
-# 5. Run database migrations
-cd backend && alembic upgrade head
-
-# 6. Test pipeline manually
-python -m app.pipeline.runner
-
-# 7. Start backend
-uvicorn app.main:app --reload --port 8000
-
-# 8. Start frontend (separate terminal)
-cd frontend && npm install && npm run dev
+pip install -e '.[dev]'
+pytest            # offline: fake feeds, fake Jev, fake Telegram, real git for state.sh
 ```
-
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- Swagger UI: http://localhost:8000/docs
-
-## Running with Docker Compose (all services)
-
-```bash
-cp backend/.env.example backend/.env
-docker compose up --build
-```
-
-Then pull the model and run the initial migration:
-
-```bash
-docker compose exec ollama ollama pull qwen3:8b
-docker compose exec backend alembic upgrade head
-```
-
-## Project Structure
-
-```
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI app entrypoint + lifespan
-│   │   ├── config.py            # Pydantic settings (reads .env)
-│   │   ├── database.py          # SQLAlchemy async engine + session
-│   │   ├── models.py            # ORM models (Article, ScraperState, PipelineRun)
-│   │   ├── schemas.py           # Pydantic response schemas
-│   │   ├── api/routes/
-│   │   │   ├── articles.py      # GET /api/articles, /api/articles/:id, /api/articles/tags
-│   │   │   ├── health.py        # GET /api/health, /api/health/runs
-│   │   │   └── pipeline.py      # POST /api/pipeline/trigger
-│   │   ├── scrapers/
-│   │   │   ├── arxiv.py         # arXiv Atom API scraper
-│   │   │   ├── huggingface.py   # HF Papers HTML scraper
-│   │   │   ├── rss.py           # Generic RSS feed scraper
-│   │   │   └── x_api.py         # X API v2 scraper (cost-managed)
-│   │   └── pipeline/
-│   │       ├── runner.py        # Orchestrates scrape → dedup → summarize → store
-│   │       ├── dedup.py         # URL normalization + hash-based deduplication
-│   │       └── summarizer.py    # Ollama qwen3 summarization with retry
-│   ├── scheduler.py             # APScheduler setup (6hr pipeline + 24hr X pipeline)
-│   ├── migrations/              # Alembic migration files
-│   ├── alembic.ini
-│   ├── pyproject.toml
-│   ├── Dockerfile
-│   └── .env.example
-├── frontend/
-│   ├── app/
-│   │   ├── layout.tsx           # Root layout with sticky header
-│   │   ├── page.tsx             # Main feed page with filtering + pagination
-│   │   └── article/[id]/        # Article detail page
-│   ├── components/
-│   │   ├── ArticleCard.tsx      # Card with source badge, tags, summary, time-ago
-│   │   ├── FilterBar.tsx        # Source + tag + search filter UI
-│   │   └── TagBadge.tsx         # Color-coded topic tag badge
-│   ├── lib/api.ts               # Typed fetch wrapper for backend API
-│   └── types/article.ts         # Shared TypeScript interfaces
-└── docker-compose.yml
-```
-
-## API Endpoints
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/articles` | List articles with filtering (`source`, `tags`, `q`, `since`, `limit`, `offset`) |
-| GET | `/api/articles/tags` | Tag counts for filter bar |
-| GET | `/api/articles/:id` | Full article detail |
-| GET | `/api/health` | Pipeline status + article counts by source |
-| GET | `/api/health/runs` | Recent pipeline run history |
-| POST | `/api/pipeline/trigger` | Manually trigger a pipeline run |
-
-## Configuration
-
-All configuration is via environment variables (see `backend/.env.example`):
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | postgres://mlnews:mlnews@localhost:5432/mlnews | PostgreSQL connection string |
-| `OLLAMA_BASE_URL` | http://localhost:11434 | Ollama API base URL |
-| `OLLAMA_MODEL` | qwen3:8b | Model to use for summarization |
-| `PIPELINE_INTERVAL_HOURS` | 6 | How often to run the main pipeline |
-| `X_BEARER_TOKEN` | (empty) | X/Twitter API bearer token — scraper is skipped if not set |
-| `X_MONTHLY_TWEET_CAP` | 10000 | Hard monthly tweet read limit to protect API budget |
-| `X_SCRAPE_INTERVAL_HOURS` | 24 | How often to run the X scraper |

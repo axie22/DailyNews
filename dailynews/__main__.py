@@ -1,0 +1,137 @@
+"""CLI.
+
+  python -m dailynews run [--force-digest] [--force-fetch] [--dry-run]
+  python -m dailynews doctor      # check keys, Telegram, Jev, and every source once
+  python -m dailynews chat-id     # print chat IDs that have messaged your bot (setup helper)
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import logging
+import os
+import sys
+
+import httpx
+
+from dailynews.config import Settings, load_profile, load_sources
+from dailynews.sources import build_sources
+from dailynews.sources.base import USER_AGENT
+
+
+def _client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(headers={"User-Agent": USER_AGENT}, timeout=30.0, follow_redirects=True)
+
+
+async def cmd_run(args) -> int:
+    from dailynews.pipeline import run
+    if args.dry_run:
+        os.environ["DAILYNEWS_DRY_RUN"] = "1"
+    settings, profile = Settings.from_env(), load_profile()
+    report = await run(settings, profile, build_sources(load_sources()),
+                       force_digest=args.force_digest, force_fetch=args.force_fetch)
+    print(json.dumps(report.__dict__, indent=2, default=str))
+    return 0
+
+
+async def cmd_doctor(args) -> int:
+    from dailynews.classify.jev import JevClient, JevError
+    from dailynews.classify.questions import build_questions
+    from dailynews.telegram import Telegram, TelegramError
+
+    settings, profile = Settings.from_env(), load_profile()
+    ok = True
+    async with _client() as http:
+        print("── Telegram")
+        if settings.telegram_token:
+            tg = Telegram(settings.telegram_token, settings.telegram_chat_id or "0", http)
+            try:
+                me = await tg.call("getMe")
+                print(f"  bot: @{me.get('username')}")
+                hook = await tg.call("getWebhookInfo")
+                if hook.get("url"):
+                    ok = False
+                    print(f"  ✗ a webhook is set ({hook['url']}); getUpdates won't work. Run deleteWebhook.")
+                if settings.telegram_chat_id and args.send_test:
+                    await tg.send("✅ DailyNews doctor: delivery works.")
+                    print("  test message sent")
+            except TelegramError as e:
+                ok = False
+                print(f"  ✗ {e}")
+        else:
+            ok = False
+            print("  ✗ TELEGRAM_BOT_TOKEN not set")
+        if not settings.telegram_chat_id:
+            ok = False
+            print("  ✗ TELEGRAM_CHAT_ID not set (message your bot, then run `python -m dailynews chat-id`)")
+
+        print("── Jev")
+        if settings.typesafe_api_key:
+            jev = JevClient(settings.typesafe_api_key, settings.jev_base_url, settings.jev_model)
+            try:
+                raw = await jev.ask(http, "Source: OpenAI blog\nTitle: Introducing GPT-6\nText: Today we are "
+                                    "releasing GPT-6, our most capable model.", build_questions(profile))
+                a = raw["answers"]
+                print(f"  model={raw.get('model')} kind={a['kind']['choice']} topic={a['topic']['choice']} "
+                      f"significance={a['significance']['score']:.2f} tokens={jev.input_tokens}")
+            except JevError as e:
+                ok = False
+                print(f"  ✗ {e}")
+        else:
+            print("  ! TYPESAFE_API_KEY not set — heuristic fallback will be used")
+
+        print("── Sources")
+        for src in build_sources(load_sources()):
+            try:
+                items = await src.fetch(http)
+                print(f"  ✓ {src.key:20s} {len(items):4d} items" + ("  ✗ EMPTY" if not items else ""))
+                ok &= bool(items)
+            except Exception as e:
+                ok = False
+                print(f"  ✗ {src.key:20s} {type(e).__name__}: {str(e)[:120]}")
+    return 0 if ok else 1
+
+
+async def cmd_chat_id(args) -> int:
+    from dailynews.telegram import Telegram
+    settings = Settings.from_env()
+    if not settings.telegram_token:
+        print("Set TELEGRAM_BOT_TOKEN first.")
+        return 1
+    async with _client() as http:
+        tg = Telegram(settings.telegram_token, "0", http)
+        updates = await tg.call("getUpdates", timeout=0, allowed_updates=["message"])
+    chats = {}
+    for u in updates:
+        chat = (u.get("message") or {}).get("chat")
+        if chat:
+            chats[chat["id"]] = chat.get("username") or chat.get("title") or chat.get("first_name")
+    if not chats:
+        print("No messages found. Send any message to your bot in Telegram, then re-run.")
+        return 1
+    for cid, name in chats.items():
+        print(f"{cid}\t{name}")
+    return 0
+
+
+def main() -> None:
+    logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"),
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    p = argparse.ArgumentParser(prog="dailynews")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    r = sub.add_parser("run")
+    r.add_argument("--force-digest", action="store_true", help="send the digest now, even if already sent today")
+    r.add_argument("--force-fetch", action="store_true", help="ignore per-source polling intervals")
+    r.add_argument("--dry-run", action="store_true", help="print messages instead of sending; don't mark sent")
+    d = sub.add_parser("doctor")
+    d.add_argument("--send-test", action="store_true")
+    sub.add_parser("chat-id")
+    args = p.parse_args()
+    fn = {"run": cmd_run, "doctor": cmd_doctor, "chat-id": cmd_chat_id}[args.cmd]
+    sys.exit(asyncio.run(fn(args)))
+
+
+if __name__ == "__main__":
+    main()
