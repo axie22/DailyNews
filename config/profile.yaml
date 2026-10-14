@@ -1,0 +1,75 @@
+# Your reading profile. Edit freely — everything here is read on each run.
+#
+# NOTE: `topics` and `kinds` (names AND descriptions) are sent to Jev as the
+# question set. Changing them changes the question-set hash, which triggers a
+# cheap re-classification of your rated items so the learned ranker retrains on
+# consistent features. Changing `weight` values does NOT re-classify anything.
+
+timezone: America/New_York
+
+digest:
+  hour: 7                # earliest local hour the morning digest may go out
+  size: 8                # items sent with 👍/👎 buttons
+  also_notable: 5        # extra titles listed (no buttons) in the header
+  min_score: 2.5         # quality floor: a short digest beats a padded one. Lower it if days feel empty.
+  window_hours: 36       # only items first seen within this window are candidates
+  max_age_days: 7        # ...and published within this many days
+  caps:                  # diversity: max items per bucket in the digest
+    per_topic: 3
+    papers: 4            # arxiv + hf_papers combined
+    per_lab: 3
+
+breaking:
+  enabled: true
+  quiet_hours: [22, 7]   # [start, end) local time — no instant pushes in this range
+  max_per_run: 2
+  min_release_prob: 0.6  # P(kind in model_release, product_or_api)
+  min_significance: 0.5  # normalized 0..1
+
+# Frontier labs: anything from these sources gets the deterministic priority flag.
+# Keys are referenced from config/sources.yaml (`lab:`).
+labs: [openai, google, anthropic, meta, mistral, deepseek, qwen, nvidia, xai]
+
+# Topic taxonomy (Jev `choice`). weight = how much you care (0..1).
+topics:
+  alignment_safety:
+    weight: 1.0
+    description: AI alignment, interpretability, evaluations, red-teaming, model welfare, AI safety policy
+  inference_efficiency:
+    weight: 0.9
+    description: LLM inference and serving, quantization, kernels, KV cache, hardware, efficient architectures
+  agents_memory:
+    weight: 0.9
+    description: LLM agents, tool use, agent memory systems, RAG, workflow automation
+  llm_training:
+    weight: 0.7
+    description: Pretraining, post-training, RL for LLMs, scaling laws, data, reasoning models
+  driving_robotics:
+    weight: 0.7
+    description: Autonomous driving, end-to-end planning, robotics, embodied AI, world models
+  multimodal_vision:
+    weight: 0.4
+    description: Vision, vision-language models, image/video/audio generation
+  ml_theory:
+    weight: 0.3
+    description: Learning theory, optimization theory, statistics
+  other:
+    weight: 0.1
+    description: Anything else (applications, business news, non-ML)
+
+# Item kind (Jev `choice`).
+kinds:
+  model_release: A new model or model version is released or announced
+  research_paper: A research paper or technical report
+  product_or_api: A product, API, or feature launch or update
+  safety_policy: Safety, governance, policy, or responsible-AI announcement
+  tooling_infra: Open-source library, framework, dataset, or infrastructure release
+  discussion_opinion: Discussion thread, opinion piece, or commentary
+  other_news: Partnerships, hiring, offices, customer stories, other company news
+
+significance_levels:
+  - Routine or incremental; little new
+  - Solid incremental contribution
+  - Notable; worth a practitioner's attention
+  - Major result or release in its area
+  - Field-shifting

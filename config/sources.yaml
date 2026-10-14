@@ -1,0 +1,53 @@
+# Source registry. `group` drives diversity caps and a learned per-source preference.
+# `lab` (optional) marks items as frontier-lab priority. `min_interval_hours`
+# throttles how often a source is polled even though the workflow runs hourly.
+#
+# verified = confirmed to return a feed/listing when this file was written (2026-10-14).
+
+rss:
+  - {key: openai,          url: "https://openai.com/news/rss.xml",              lab: openai,    group: lab}       # verified
+  - {key: deepmind,        url: "https://deepmind.google/blog/rss.xml",         lab: google,    group: lab}       # verified
+  - {key: google_research, url: "https://research.google/blog/rss/",            lab: google,    group: lab}       # verified
+  - {key: google_ai_blog,  url: "https://blog.google/technology/ai/rss/",       lab: google,    group: lab}
+  - {key: alignment_forum, url: "https://www.alignmentforum.org/feed.xml?view=curated-rss", group: community}
+  - {key: bair,            url: "https://bair.berkeley.edu/blog/feed.xml",      group: community}
+  - {key: reddit_ml,       url: "https://www.reddit.com/r/MachineLearning/top/.rss?t=day", group: community, min_interval_hours: 6}
+
+# Anthropic publishes no RSS feed; these listing pages are scraped (fragile — watch health warnings).
+anthropic:
+  - {key: anthropic_news,     url: "https://www.anthropic.com/news",     lab: anthropic, group: lab}  # verified
+  - {key: anthropic_research, url: "https://www.anthropic.com/research", lab: anthropic, group: lab}
+
+# Newest model repos per org on the Hugging Face Hub (catches open-weight releases with no blog post).
+hf_models:
+  min_interval_hours: 3
+  orgs:
+    meta-llama: meta
+    google: google
+    mistralai: mistral
+    deepseek-ai: deepseek
+    Qwen: qwen
+    nvidia: nvidia
+    openai: openai
+    xai-org: xai
+
+hf_papers:
+  min_interval_hours: 3
+  # HF Daily Papers orgs that count as frontier labs (paper.organization.name -> lab)
+  org_labs:
+    google: google
+    deepmind: google
+    google-deepmind: google
+    openai: openai
+    anthropic: anthropic
+    facebook: meta
+    meta-llama: meta
+    nvidia: nvidia
+    Qwen: qwen
+    deepseek-ai: deepseek
+    mistralai: mistral
+
+arxiv:
+  min_interval_hours: 4
+  query: "cat:cs.LG OR cat:cs.AI OR cat:cs.CL"
+  max_results: 400

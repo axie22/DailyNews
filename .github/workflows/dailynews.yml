@@ -1,0 +1,67 @@
+name: dailynews
+
+on:
+  schedule:
+    # Hourly. Not for freshness alone: Telegram keeps button taps for only ~24h, and each
+    # run collects them. Sources are throttled individually (config/sources.yaml), and the
+    # digest goes out on the first run at/after digest.hour local time (DST-safe).
+    - cron: "23 * * * *"
+  workflow_dispatch:
+    inputs:
+      force_digest:
+        description: Send the digest now (even if already sent today)
+        type: boolean
+        default: false
+      dry_run:
+        description: Print messages in the log instead of sending
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # to force-push the state snapshot to the `data` branch
+
+concurrency:
+  group: dailynews-state   # never let two runs race on the same DB
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: pip install .
+
+      - name: Restore state
+        run: scripts/state.sh pull
+        env:
+          STATE_KEY: ${{ secrets.STATE_KEY }}
+
+      - name: Run pipeline
+        run: |
+          args=()
+          [[ "${{ inputs.force_digest }}" == "true" ]] && args+=(--force-digest)
+          [[ "${{ inputs.dry_run }}" == "true" ]] && args+=(--dry-run)
+          python -m dailynews run "${args[@]}"
+        env:
+          DAILYNEWS_DB: state/dailynews.db
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          JEV_MODEL: ${{ vars.JEV_MODEL || 'jev-1.13.0' }}
+
+      # Always save — even if the run failed after sending messages — so nothing is re-sent.
+      # state.sh refuses to push if the restore step didn't succeed.
+      - name: Save state
+        if: always()
+        run: scripts/state.sh push
+        env:
+          STATE_KEY: ${{ secrets.STATE_KEY }}

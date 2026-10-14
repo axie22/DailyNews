@@ -1,0 +1,30 @@
+[project]
+name = "dailynews"
+version = "2.0.0"
+description = "Personal ML news triage: Jev classification, learned ranking, Telegram delivery"
+requires-python = ">=3.12"
+dependencies = [
+  "httpx>=0.27",
+  "feedparser>=6.0",
+  "beautifulsoup4>=4.12",
+  "lxml>=5.0",
+  "pyyaml>=6.0",
+  "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+dailynews = "dailynews.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dailynews"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
