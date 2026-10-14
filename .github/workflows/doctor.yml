@@ -1,0 +1,39 @@
+name: doctor
+
+# Checks secrets, Telegram, Jev and every source using the repo's Actions secrets,
+# and sends one test message. Runs on any push to the v2 branch (so it works before
+# merging; manual "Run workflow" only appears once a workflow is on the default branch)
+# and on demand afterwards.
+on:
+  push:
+    branches: [v2-jev-telegram]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+      STATE_KEY: ${{ secrets.STATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install .
+      - name: Secret presence (lengths only, never values)
+        run: |
+          python - <<'PY'
+          import os
+          for v in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TYPESAFE_API_KEY", "STATE_KEY"):
+              n = len(os.environ.get(v, ""))
+              print(f"{v:20s} {n:3d} chars" + ("   <-- MISSING" if n == 0 else ""))
+          PY
+      - name: Doctor
+        run: python -m dailynews doctor --send-test
