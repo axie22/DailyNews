@@ -126,3 +126,20 @@ async def test_broken_source_does_not_sink_run_and_is_reported(settings, profile
     r = await go(settings, profile, sources, web, now, force_fetch=True)
     assert r.digest_sent
     assert "anthropic_news" in web.tg_sent[0]["text"] and "Source issues" in web.tg_sent[0]["text"]
+
+
+async def test_chat_id_secret_with_whitespace_still_matches(settings, profile, sources, web, now):
+    await go(settings, profile, sources, web, now)
+    item_id = sent_item_ids(web.tg_sent)[0]
+    web.tap(1, item_id, -1)
+    r = await go(replace(settings, telegram_chat_id=" 42\n"), profile, sources, web, now + timedelta(hours=1))
+    assert r.feedback == 1 and not r.notes
+
+
+async def test_taps_from_mismatched_chat_are_reported(settings, profile, sources, web, now):
+    await go(settings, profile, sources, web, now)
+    item_id = sent_item_ids(web.tg_sent)[0]
+    web.tap(1, item_id, 1, chat_id="777")
+    r = await go(settings, profile, sources, web, now + timedelta(hours=1))
+    assert r.feedback == 0
+    assert any("777" in n and "TELEGRAM_CHAT_ID" in n for n in r.notes)

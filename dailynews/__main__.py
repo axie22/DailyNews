@@ -32,7 +32,39 @@ async def cmd_run(args) -> int:
     report = await run(settings, profile, build_sources(load_sources()),
                        force_digest=args.force_digest, force_fetch=args.force_fetch)
     print(json.dumps(report.__dict__, indent=2, default=str))
-    return 0
+    delivery_ok = settings.dry_run or bool(settings.telegram_token and settings.telegram_chat_id)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        _github_report(report, settings, delivery_ok)
+    # A green run that can't deliver anything is worse than a red one.
+    return 0 if delivery_ok else 1
+
+
+def _github_report(report, settings, delivery_ok: bool) -> None:
+    """Surface the run outcome where you'll see it: the run's Summary tab and annotations."""
+    errors = {k: v for k, v in report.fetched.items() if isinstance(v, str)}
+    if report.digest_sent:
+        digest = "sent" + (" (dry run, printed to log only)" if settings.dry_run else "")
+    else:
+        digest = f"not sent: {report.digest_reason}"
+    line = (f"digest {digest} | breaking pushes: {report.breaking_sent} | new items: {report.new_items} | "
+            f"Jev: {report.classified_jev}, heuristic: {report.classified_heuristic} | "
+            f"feedback taps: {report.feedback} | source errors: {len(errors)}")
+    print(f"::notice title=dailynews::{line}")
+    for n in report.notes:
+        print(f"::warning title=dailynews::{n}")
+    for k, v in errors.items():
+        print(f"::warning title=source {k}::{v[:300]}")
+    if not delivery_ok:
+        print("::error title=dailynews::TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID missing in this workflow — nothing was delivered")
+    path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if path:
+        with open(path, "a") as f:
+            f.write("### dailynews\n\n" + line.replace(" | ", "  \n") + "\n")
+            if report.notes or errors:
+                f.write("\n**Warnings**\n\n" + "".join(f"- {n}\n" for n in report.notes)
+                        + "".join(f"- `{k}`: {v[:200]}\n" for k, v in errors.items()))
+            f.write("\n<details><summary>Full report</summary>\n\n```json\n"
+                    + json.dumps(report.__dict__, indent=2, default=str) + "\n```\n</details>\n")
 
 
 async def cmd_doctor(args) -> int:
