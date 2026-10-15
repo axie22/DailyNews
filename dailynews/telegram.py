@@ -97,7 +97,10 @@ class TelegramError(Exception):
 
 class Telegram:
     def __init__(self, token: str, chat_id: str, http: httpx.AsyncClient, dry_run: bool = False):
-        self.token, self.chat_id, self.http, self.dry_run = token, str(chat_id), http, dry_run
+        self.token, self.http, self.dry_run = token, http, dry_run
+        # Secrets pasted with a trailing newline/space would otherwise never match update chat ids.
+        self.chat_id = str(chat_id).strip()
+        self.last_sync: dict = {}
         self.sent: list[dict] = []   # dry-run log
 
     async def call(self, method: str, **params) -> dict:
@@ -130,20 +133,24 @@ class Telegram:
         offset = int(store.kv_get("tg_offset", "0"))
         updates = await self.call("getUpdates", offset=offset + 1 if offset else 0, timeout=0,
                                   allowed_updates=["callback_query", "message"])
-        recorded = 0
+        recorded, seen, foreign, unknown_item = 0, 0, set(), 0
         for u in updates:
             offset = max(offset, u["update_id"])
             cq = u.get("callback_query")
             if not cq:
                 continue
             chat = str(((cq.get("message") or {}).get("chat") or {}).get("id", ""))
+            seen += 1
             if chat != self.chat_id:   # anyone can message a bot; only trust your chat
+                foreign.add(chat)
                 continue
             m = re.fullmatch(r"fb:(\d+):(-?1)", cq.get("data", ""))
             if not m:
                 continue
             item_id, label = int(m.group(1)), int(m.group(2))
-            if store.set_feedback(item_id, label, now):
+            if not store.set_feedback(item_id, label, now):
+                unknown_item += 1
+            else:
                 recorded += 1
                 msg = cq.get("message") or {}
                 try:
@@ -156,4 +163,6 @@ class Telegram:
             except TelegramError:
                 pass
         store.kv_set("tg_offset", str(offset))
+        self.last_sync = {"updates": len(updates), "taps": seen, "recorded": recorded,
+                          "foreign_chats": sorted(foreign), "unknown_items": unknown_item}
         return recorded

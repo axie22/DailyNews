@@ -108,6 +108,14 @@ async def run(settings: Settings, profile: Profile, sources: list[Source], *, no
         if tg and not settings.dry_run:
             try:
                 report.feedback = await tg.sync_feedback(store, now)
+                fs = tg.last_sync
+                if fs.get("foreign_chats"):
+                    report.notes.append(
+                        f"ignored {fs['taps'] - fs['recorded'] - fs['unknown_items']} tap(s) from chat id(s) "
+                        f"{', '.join(fs['foreign_chats'])}, which don't match TELEGRAM_CHAT_ID — if that's you, "
+                        f"update the secret")
+                if fs.get("unknown_items"):
+                    report.notes.append(f"{fs['unknown_items']} tap(s) referenced items no longer in the database")
             except TelegramError as e:
                 report.notes.append(f"feedback sync failed: {e}")
 
