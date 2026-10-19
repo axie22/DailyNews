@@ -34,7 +34,7 @@ def sources():
     cfg = load_sources()
     # keep only sources the fake web serves
     cfg["rss"] = [s for s in cfg["rss"] if s["key"] == "openai"]
-    cfg["anthropic"] = [s for s in cfg["anthropic"] if s["key"] == "anthropic_news"]
+    cfg["pages"] = [s for s in cfg["pages"] if s["key"] in ("anthropic_news", "goodfire_blog")]
     return build_sources(cfg)
 
 

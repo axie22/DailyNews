@@ -32,6 +32,14 @@ class FakeWeb:
           <a href="/news/claude-5-release"><h3>Claude 5 is here</h3><span>Announcements</span><span>Oct 14, 2026</span></a>
           <a href="/news/singapore-office">Announcements Oct 1, 2026 Anthropic opens Singapore office</a>
           <a href="/careers">Careers</a></body></html>"""
+        # Goodfire layout: heading + date in a card, followed by an EMPTY link; cards share a grid.
+        self.goodfire_html = """<html><body><h1>Blog</h1><div class="grid">
+          <div class="card"><h2>We can and must solve alignment with interpretability</h2>
+            <p>September 30, 2026</p><a href="https://www.goodfire.com/blog/we-can-and-must-solve-alignment"></a></div>
+          <div class="card"><div><h2>A practical guide to sparse autoencoders (SAEs)</h2><span>Sept 28, 2026</span></div>
+            <a href="/blog/a-practical-guide-to-saes"></a></div>
+          <a href="/blog">All posts</a><a href="/careers">Careers</a>
+        </div></body></html>"""
 
     # ── fixtures ──
     def rss(self) -> str:
@@ -120,6 +128,8 @@ class FakeWeb:
             return httpx.Response(200, json=self.hf_papers())
         if host == "huggingface.co" and path == "/api/models":
             return httpx.Response(200, json=self.hf_models(request.url.params.get("author")))
+        if host == "www.goodfire.com" and path == "/blog":
+            return httpx.Response(200, text=self.goodfire_html)
         if host == "www.anthropic.com" and path == "/news":
             return httpx.Response(200, text=self.anthropic_html)
         if host == "api.typesafe.ai":

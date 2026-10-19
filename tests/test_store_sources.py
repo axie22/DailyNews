@@ -1,3 +1,4 @@
+import pytest
 from datetime import timedelta
 
 from dailynews.sources.base import RawItem
@@ -73,6 +74,13 @@ async def test_sources_parse_fixtures(web, sources):
         got = {s.key: await s.fetch(http) for s in sources}
     assert [i.title for i in got["openai"]][0] == "Introducing GPT-7"
     assert all(i.lab == "openai" for i in got["openai"])
+    gf = got["goodfire_blog"]
+    assert [g.title for g in gf] == ["We can and must solve alignment with interpretability",
+                                     "A practical guide to sparse autoencoders (SAEs)"]
+    assert [g.url for g in gf] == ["https://www.goodfire.com/blog/we-can-and-must-solve-alignment",
+                                   "https://www.goodfire.com/blog/a-practical-guide-to-saes"]
+    assert [(g.published_at.month, g.published_at.day) for g in gf] == [(9, 30), (9, 28)]
+    assert all(g.lab == "goodfire" for g in gf)
     anth = got["anthropic_news"]
     assert [a.title for a in anth] == ["Claude 5 is here", "Anthropic opens Singapore office"]
     assert anth[0].published_at.day == 14
@@ -93,3 +101,16 @@ async def test_anthropic_layout_change_raises(web, sources):
             assert "layout" in str(e)
         else:
             raise AssertionError("expected a loud failure")
+
+
+async def test_listing_card_never_borrows_a_neighbours_title(web, sources):
+    # Empty links whose only heading-bearing ancestor is the shared grid must be skipped,
+    # not given the first post's title.
+    web.goodfire_html = """<html><body><div class="grid">
+      <h2>Only heading on the page</h2>
+      <div><a href="/blog/post-one"></a></div><div><a href="/blog/post-two"></a></div>
+    </div></body></html>"""
+    src = next(s for s in sources if s.key == "goodfire_blog")
+    async with web.client() as http:
+        with pytest.raises(RuntimeError):
+            await src.fetch(http)
