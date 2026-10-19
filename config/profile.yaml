@@ -28,7 +28,7 @@ breaking:
 
 # Frontier labs: anything from these sources gets the deterministic priority flag.
 # Keys are referenced from config/sources.yaml (`lab:`).
-labs: [openai, google, anthropic, meta, mistral, deepseek, qwen, nvidia, xai]
+labs: [openai, google, anthropic, meta, mistral, deepseek, qwen, nvidia, xai, goodfire]
 
 # Topic taxonomy (Jev `choice`). weight = how much you care (0..1).
 topics:

@@ -115,13 +115,21 @@ async def cmd_doctor(args) -> int:
 
         print("── Sources")
         for src in build_sources(load_sources()):
+            gha = os.environ.get("GITHUB_ACTIONS") == "true"
             try:
                 items = await src.fetch(http)
                 print(f"  ✓ {src.key:20s} {len(items):4d} items" + ("  ✗ EMPTY" if not items else ""))
                 ok &= bool(items)
+                if gha:
+                    newest = max((i for i in items if i.published_at), key=lambda i: i.published_at, default=None)
+                    sample = (f"newest: {newest.published_at:%Y-%m-%d} {newest.title[:80]}" if newest
+                              else f"e.g. {items[0].title[:80]}" if items else "")
+                    print(f"::notice title=source {src.key}::{len(items)} items. {sample}")
             except Exception as e:
                 ok = False
                 print(f"  ✗ {src.key:20s} {type(e).__name__}: {str(e)[:120]}")
+                if gha:
+                    print(f"::error title=source {src.key}::{type(e).__name__}: {str(e)[:200]}")
     return 0 if ok else 1
 
 

@@ -13,10 +13,13 @@ rss:
   - {key: bair,            url: "https://bair.berkeley.edu/blog/feed.xml",      group: community}
   - {key: reddit_ml,       url: "https://www.reddit.com/r/MachineLearning/top/.rss?t=day", group: community, min_interval_hours: 6}
 
-# Anthropic publishes no RSS feed; these listing pages are scraped (fragile — watch health warnings).
-anthropic:
+# Sites with no RSS feed: their listing pages are scraped (fragile — watch the digest's health footer).
+pages:
   - {key: anthropic_news,     url: "https://www.anthropic.com/news",     lab: anthropic, group: lab}  # verified
   - {key: anthropic_research, url: "https://www.anthropic.com/research", lab: anthropic, group: lab}
+  # Goodfire (interpretability). Treated as priority like the frontier labs.
+  - {key: goodfire_blog,      url: "https://www.goodfire.com/blog",      lab: goodfire,  group: lab}  # verified 2026-10-19
+  - {key: goodfire_research,  url: "https://www.goodfire.com/research",  lab: goodfire,  group: lab}
 
 # Newest model repos per org on the Hugging Face Hub (catches open-weight releases with no blog post).
 hf_models:
