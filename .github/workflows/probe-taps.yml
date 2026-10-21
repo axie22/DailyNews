@@ -3,6 +3,8 @@ name: probe-taps
 # Diagnose 👍/👎 taps that never arrive. Watches the bot's update queue for a few minutes
 # without consuming anything. Tap a button in Telegram while it runs.
 on:
+  push:
+    branches: [tap-probe]
   workflow_dispatch:
     inputs:
       seconds:
@@ -22,7 +24,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install .
-      - run: python -m dailynews probe-taps --seconds "${{ inputs.seconds }}"
+      - run: python -m dailynews probe-taps --seconds "${{ inputs.seconds || 300 }}"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
