@@ -55,7 +55,7 @@ async def test_feedback_roundtrip_and_foreign_chat_ignored(settings, profile, so
     assert web.tg_edits[0]["reply_markup"]["inline_keyboard"][0][0]["text"] == "👍 ✓"
     s = Store(settings.db_path)
     assert s.db.execute("SELECT label FROM feedback WHERE item_id=?", (item_id,)).fetchone()[0] == 1
-    assert s.kv_get("tg_offset") == "2"
+    assert web.tg_updates == []          # both taps confirmed (deleted) on Telegram's side
     s.close()
     # offset advanced → the same taps aren't re-processed
     r3 = await go(settings, profile, sources, web, now + timedelta(hours=2))
@@ -143,3 +143,20 @@ async def test_taps_from_mismatched_chat_are_reported(settings, profile, sources
     r = await go(settings, profile, sources, web, now + timedelta(hours=1))
     assert r.feedback == 0
     assert any("777" in n and "TELEGRAM_CHAT_ID" in n for n in r.notes)
+
+
+async def test_taps_recorded_after_telegram_renumbers_update_ids(settings, profile, sources, web, now):
+    """Telegram restarts update_ids at a random value after a quiet period; a tap can then
+    have a lower id than anything seen before. It must still be recorded."""
+    await go(settings, profile, sources, web, now)
+    ids = sent_item_ids(web.tg_sent)
+    web.tap(900_000, ids[0], 1)
+    r = await go(settings, profile, sources, web, now + timedelta(hours=1))
+    assert r.feedback == 1
+    web.tap(17, ids[1], 1)               # renumbered: far below the last id we handled
+    web.tap(18, ids[2], -1)
+    r = await go(settings, profile, sources, web, now + timedelta(hours=2))
+    assert r.feedback == 2 and web.tg_updates == []
+    s = Store(settings.db_path)
+    assert dict(s.db.execute("SELECT item_id, label FROM feedback").fetchall()) == {ids[0]: 1, ids[1]: 1, ids[2]: -1}
+    s.close()

@@ -151,8 +151,11 @@ class FakeWeb:
             self.tg_sent.append({**body, "message_id": self.next_msg_id})
             return httpx.Response(200, json={"ok": True, "result": {"message_id": self.next_msg_id}})
         if method == "getUpdates":
+            # Real semantics: an offset confirms (permanently drops) every update below it.
             off = body.get("offset") or 0
-            ups = [u for u in self.tg_updates if u["update_id"] >= off]
+            if off:
+                self.tg_updates = [u for u in self.tg_updates if u["update_id"] >= off]
+            ups = self.tg_updates[: body.get("limit") or 100]
             return httpx.Response(200, json={"ok": True, "result": ups})
         if method == "editMessageReplyMarkup":
             self.tg_edits.append(body)
