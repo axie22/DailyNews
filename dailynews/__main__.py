@@ -133,6 +133,56 @@ async def cmd_doctor(args) -> int:
     return 0 if ok else 1
 
 
+async def cmd_probe_taps(args) -> int:
+    """Watch the bot's update queue WITHOUT consuming it (no offset is ever confirmed).
+
+    Reports webhook state, queued updates, and — the key signal — whether another
+    process is polling the same bot token (Telegram answers 409 Conflict when two
+    getUpdates long-polls overlap).
+    """
+    import time
+    from dailynews.telegram import Telegram, TelegramError
+    settings = Settings.from_env()
+    gha = os.environ.get("GITHUB_ACTIONS") == "true"
+
+    def out(level: str, msg: str):
+        print(msg)
+        if gha:
+            print(f"::{level} title=tap probe::{msg}")
+
+    async with httpx.AsyncClient(timeout=70.0) as http:
+        tg = Telegram(settings.telegram_token, settings.telegram_chat_id or "0", http)
+        info = await tg.call("getWebhookInfo")
+        out("notice", f"webhook url={info.get('url') or '(none)'} pending_update_count={info.get('pending_update_count')} "
+                      f"last_error={info.get('last_error_message') or '(none)'}")
+        deadline = time.monotonic() + args.seconds
+        conflicts, polls, seen = 0, 0, {}
+        while time.monotonic() < deadline:
+            polls += 1
+            try:
+                ups = await tg.call("getUpdates", timeout=min(25, max(1, int(deadline - time.monotonic()))),
+                                    allowed_updates=["callback_query", "message"])
+            except TelegramError as e:
+                if "409" in str(e) or "Conflict" in str(e):
+                    conflicts += 1
+                    if conflicts == 1:
+                        out("error", f"409 Conflict: another process is polling this bot token ({e})")
+                    await asyncio.sleep(2)
+                    continue
+                raise
+            for u in ups:   # never confirmed: we don't pass a higher offset, so nothing is consumed
+                kind = next((k for k in u if k != "update_id"), "?")
+                seen[u["update_id"]] = kind
+            if ups:
+                await asyncio.sleep(3)
+        kinds = {}
+        for k in seen.values():
+            kinds[k] = kinds.get(k, 0) + 1
+        out("notice", f"{polls} polls over {args.seconds}s, {conflicts} conflicts, "
+                      f"{len(seen)} distinct queued updates {kinds or ''}")
+    return 1 if conflicts else 0
+
+
 async def cmd_chat_id(args) -> int:
     from dailynews.telegram import Telegram
     settings = Settings.from_env()
@@ -168,8 +218,10 @@ def main() -> None:
     d = sub.add_parser("doctor")
     d.add_argument("--send-test", action="store_true")
     sub.add_parser("chat-id")
+    pt = sub.add_parser("probe-taps", help="diagnose button taps without consuming them")
+    pt.add_argument("--seconds", type=int, default=240)
     args = p.parse_args()
-    fn = {"run": cmd_run, "doctor": cmd_doctor, "chat-id": cmd_chat_id}[args.cmd]
+    fn = {"run": cmd_run, "doctor": cmd_doctor, "chat-id": cmd_chat_id, "probe-taps": cmd_probe_taps}[args.cmd]
     sys.exit(asyncio.run(fn(args)))
 
 
