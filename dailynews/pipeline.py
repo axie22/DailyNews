@@ -25,6 +25,7 @@ BREAKING_MAX_AGE = timedelta(hours=12)
 @dataclass
 class RunReport:
     feedback: int = 0
+    telegram: dict = field(default_factory=dict)
     fetched: dict = field(default_factory=dict)
     new_items: int = 0
     classified_jev: int = 0
@@ -109,6 +110,7 @@ async def run(settings: Settings, profile: Profile, sources: list[Source], *, no
             try:
                 report.feedback = await tg.sync_feedback(store, now)
                 fs = tg.last_sync
+                report.telegram = fs
                 if fs.get("foreign_chats"):
                     report.notes.append(
                         f"ignored {fs['taps'] - fs['recorded'] - fs['unknown_items']} tap(s) from chat id(s) "

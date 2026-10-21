@@ -49,6 +49,11 @@ def _github_report(report, settings, delivery_ok: bool) -> None:
     line = (f"digest {digest} | breaking pushes: {report.breaking_sent} | new items: {report.new_items} | "
             f"Jev: {report.classified_jev}, heuristic: {report.classified_heuristic} | "
             f"feedback taps: {report.feedback} | source errors: {len(errors)}")
+    t = report.telegram
+    if t:
+        line += (f" | telegram: {t.get('updates', 0)} updates, {t.get('taps', 0)} taps, "
+                 f"{t.get('recorded', 0)} recorded, {len(t.get('foreign_chats') or [])} foreign chats, "
+                 f"{t.get('unknown_items', 0)} unknown items, {t.get('bad_data', 0)} bad data, ids {t.get('id_range')}")
     print(f"::notice title=dailynews::{line}")
     for n in report.notes:
         print(f"::warning title=dailynews::{n}")
