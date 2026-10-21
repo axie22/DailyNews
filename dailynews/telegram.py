@@ -139,7 +139,7 @@ class Telegram:
         updates = await self.call("getUpdates", timeout=0, limit=100,
                                   allowed_updates=["callback_query", "message"])
         offset = 0
-        recorded, seen, foreign, unknown_item = 0, 0, set(), 0
+        recorded, seen, foreign, unknown_item, bad_data = 0, 0, set(), 0, 0
         for u in updates:
             offset = max(offset, u["update_id"])
             cq = u.get("callback_query")
@@ -152,6 +152,7 @@ class Telegram:
                 continue
             m = re.fullmatch(r"fb:(\d+):(-?1)", cq.get("data", ""))
             if not m:
+                bad_data += 1
                 continue
             item_id, label = int(m.group(1)), int(m.group(2))
             if not store.set_feedback(item_id, label, now):
@@ -173,6 +174,7 @@ class Telegram:
             await self.call("getUpdates", offset=offset + 1, timeout=0, limit=1,
                             allowed_updates=["callback_query", "message"])
         store.kv_set("tg_offset", str(offset))   # informational only
-        self.last_sync = {"updates": len(updates), "taps": seen, "recorded": recorded,
+        self.last_sync = {"updates": len(updates), "taps": seen, "recorded": recorded, "bad_data": bad_data,
+                          "id_range": [min((u["update_id"] for u in updates), default=None), offset or None],
                           "foreign_chats": sorted(foreign), "unknown_items": unknown_item}
         return recorded
