@@ -132,9 +132,13 @@ class Telegram:
 
     async def sync_feedback(self, store: Store, now: datetime) -> int:
         """Pull button taps since the last run and record them as labels."""
-        offset = int(store.kv_get("tg_offset", "0"))
-        updates = await self.call("getUpdates", offset=offset + 1 if offset else 0, timeout=0,
+        # No stored offset: Telegram re-numbers update_ids randomly after a quiet spell, so a
+        # remembered position can end up *ahead* of new taps and hide them forever. Instead,
+        # read everything still unconfirmed, then confirm exactly what we read (below).
+        # Re-reading a tap after a crash is harmless: the latest label simply wins.
+        updates = await self.call("getUpdates", timeout=0, limit=100,
                                   allowed_updates=["callback_query", "message"])
+        offset = 0
         recorded, seen, foreign, unknown_item = 0, 0, set(), 0
         for u in updates:
             offset = max(offset, u["update_id"])
@@ -164,7 +168,11 @@ class Telegram:
                 await self.call("answerCallbackQuery", callback_query_id=cq["id"], text="Noted")
             except TelegramError:
                 pass
-        store.kv_set("tg_offset", str(offset))
+        if updates:
+            # Confirm (delete) what we processed. Called after recording, so a crash re-reads.
+            await self.call("getUpdates", offset=offset + 1, timeout=0, limit=1,
+                            allowed_updates=["callback_query", "message"])
+        store.kv_set("tg_offset", str(offset))   # informational only
         self.last_sync = {"updates": len(updates), "taps": seen, "recorded": recorded,
                           "foreign_chats": sorted(foreign), "unknown_items": unknown_item}
         return recorded
