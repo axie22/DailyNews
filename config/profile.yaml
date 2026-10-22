@@ -28,7 +28,7 @@ breaking:
 
 # Frontier labs: anything from these sources gets the deterministic priority flag.
 # Keys are referenced from config/sources.yaml (`lab:`).
-labs: [openai, google, anthropic, meta, mistral, deepseek, qwen, nvidia, xai, goodfire]
+labs: [openai, google, anthropic, meta, mistral, deepseek, qwen, nvidia, xai, goodfire, thinking_machines]
 
 # Topic taxonomy (Jev `choice`). weight = how much you care (0..1).
 topics:
@@ -41,18 +41,24 @@ topics:
   agents_memory:
     weight: 0.9
     description: LLM agents, tool use, agent memory systems, RAG, workflow automation
-  llm_training:
-    weight: 0.7
-    description: Pretraining, post-training, RL for LLMs, scaling laws, data, reasoning models
+  pretraining:
+    weight: 0.9
+    description: LLM pretraining - data and data mixtures, architectures, scaling laws, tokenization, training stability and infrastructure for large training runs
+  post_training:
+    weight: 0.9
+    description: LLM post-training - RLHF, RL with verifiable rewards, DPO and preference learning, distillation, reasoning training, fine-tuning
+  optimization:
+    weight: 0.9
+    description: Optimization for deep learning - optimizers (Adam, Muon, Shampoo), learning-rate schedules, training dynamics, initialization, normalization
   driving_robotics:
     weight: 0.7
     description: Autonomous driving, end-to-end planning, robotics, embodied AI, world models
   multimodal_vision:
     weight: 0.4
     description: Vision, vision-language models, image/video/audio generation
-  ml_theory:
-    weight: 0.3
-    description: Learning theory, optimization theory, statistics
+  ml_math_theory:
+    weight: 0.8
+    description: The mathematics of machine learning - learning theory, generalization, approximation, statistical and theoretical analysis of deep learning
   other:
     weight: 0.1
     description: Anything else (applications, business news, non-ML)

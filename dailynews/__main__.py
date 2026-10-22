@@ -88,9 +88,14 @@ async def cmd_doctor(args) -> int:
                 me = await tg.call("getMe")
                 print(f"  bot: @{me.get('username')}")
                 hook = await tg.call("getWebhookInfo")
-                if hook.get("url"):
+                url = hook.get("url") or ""
+                if url.endswith("/telegram"):
+                    print(f"  ✓ taps go to the Cloudflare Worker ({url.rsplit('/telegram', 1)[0]}), "
+                          f"pending={hook.get('pending_update_count')}"
+                          + (f", last error: {hook['last_error_message']}" if hook.get("last_error_message") else ""))
+                elif url:
                     ok = False
-                    print(f"  ✗ a webhook is set ({hook['url']}); getUpdates won't work. Run deleteWebhook.")
+                    print(f"  ✗ an unknown webhook is set ({url}); taps can't be read. Re-run the worker workflow.")
                 if settings.telegram_chat_id and args.send_test:
                     await tg.send("✅ DailyNews doctor: delivery works.")
                     print("  test message sent")
@@ -120,7 +125,10 @@ async def cmd_doctor(args) -> int:
             print("  ! TYPESAFE_API_KEY not set — heuristic fallback will be used")
 
         print("── Sources")
+        only = set(args.only.split(",")) if getattr(args, "only", None) else None
         for src in build_sources(load_sources()):
+            if only and src.key not in only:
+                continue
             gha = os.environ.get("GITHUB_ACTIONS") == "true"
             try:
                 items = await src.fetch(http)
@@ -173,6 +181,7 @@ def main() -> None:
     r.add_argument("--dry-run", action="store_true", help="print messages instead of sending; don't mark sent")
     d = sub.add_parser("doctor")
     d.add_argument("--send-test", action="store_true")
+    d.add_argument("--only", help="comma-separated source keys to check")
     sub.add_parser("chat-id")
     args = p.parse_args()
     fn = {"run": cmd_run, "doctor": cmd_doctor, "chat-id": cmd_chat_id}[args.cmd]

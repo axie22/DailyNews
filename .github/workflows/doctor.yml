@@ -8,6 +8,10 @@ on:
   push:
     branches: [v2-jev-telegram]
   workflow_dispatch:
+    inputs:
+      only:
+        description: Comma-separated source keys to check (default all)
+        default: ""
 
 permissions:
   contents: read
@@ -36,4 +40,7 @@ jobs:
               print(f"{v:20s} {n:3d} chars" + ("   <-- MISSING" if n == 0 else ""))
           PY
       - name: Doctor
-        run: python -m dailynews doctor --send-test
+        run: |
+          args=()
+          [[ -n "${{ inputs.only }}" ]] && args+=(--only "${{ inputs.only }}") || args+=(--send-test)
+          python -m dailynews doctor "${args[@]}"
