@@ -55,6 +55,13 @@ Nothing else needs copying. The webhook secret and the key the pipeline uses to 
 
 **To undo:** run the **worker** workflow with action `disable`. Telegram goes back to queueing taps, and the pipeline automatically returns to reading them with getUpdates. If you rotate `STATE_KEY` or the bot token, re-run `deploy`.
 
+## Schedule
+
+- **Digest every other morning** (`digest.every_days: 2`), first run after 7:00 local. It goes out once ≥ 2 days have passed since the last one, so a missed run sends the next morning instead of skipping a cycle.
+- **Full sweep only before a digest:** arXiv (paged, up to 2,000 over 3 days), HF Daily Papers (one request per day), community feeds and hand-picked blogs.
+- **Hourly between digests:** only the lab blogs/pages and HF releases ("fast" sources) are checked, for ⚡ breaking pushes. Set `tier: fast|full` on a source in `sources.yaml` to change this.
+- **Reserved slots:** `digest.reserve` guarantees math/optimization a place when a good-enough item exists (`reserve_floor`).
+
 ## Using it
 
 - **👍/👎** on any item trains the ranker. With the Cloudflare Worker installed (below), the button turns ✓ instantly. Without it, taps wait in Telegram's queue (24h max) until the next run collects them.
