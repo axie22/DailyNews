@@ -88,9 +88,14 @@ async def cmd_doctor(args) -> int:
                 me = await tg.call("getMe")
                 print(f"  bot: @{me.get('username')}")
                 hook = await tg.call("getWebhookInfo")
-                if hook.get("url"):
+                url = hook.get("url") or ""
+                if url.endswith("/telegram"):
+                    print(f"  ✓ taps go to the Cloudflare Worker ({url.rsplit('/telegram', 1)[0]}), "
+                          f"pending={hook.get('pending_update_count')}"
+                          + (f", last error: {hook['last_error_message']}" if hook.get("last_error_message") else ""))
+                elif url:
                     ok = False
-                    print(f"  ✗ a webhook is set ({hook['url']}); getUpdates won't work. Run deleteWebhook.")
+                    print(f"  ✗ an unknown webhook is set ({url}); taps can't be read. Re-run the worker workflow.")
                 if settings.telegram_chat_id and args.send_test:
                     await tg.send("✅ DailyNews doctor: delivery works.")
                     print("  test message sent")
