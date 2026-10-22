@@ -33,6 +33,9 @@ class Settings:
     telegram_token: str | None
     telegram_chat_id: str | None
     dry_run: bool
+    # Cloudflare Worker that receives taps instantly (optional; falls back to Telegram getUpdates).
+    worker_url: str | None = None
+    worker_token: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -45,7 +48,14 @@ class Settings:
             telegram_token=os.environ.get("TELEGRAM_BOT_TOKEN") or None,
             telegram_chat_id=os.environ.get("TELEGRAM_CHAT_ID") or None,
             dry_run=os.environ.get("DAILYNEWS_DRY_RUN", "").lower() in ("1", "true", "yes"),
+            worker_url=(os.environ.get("DAILYNEWS_WORKER_URL") or "").strip().rstrip("/") or None,
+            worker_token=(os.environ.get("DAILYNEWS_WORKER_TOKEN") or "").strip() or _derived_pull_token(),
         )
+
+
+def _derived_pull_token() -> str | None:
+    from dailynews.derived import derive
+    return derive("pull")
 
 
 @dataclass

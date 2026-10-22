@@ -24,6 +24,10 @@ class FakeWeb:
         self.tg_updates: list[dict] = []
         self.next_msg_id = 100
         self.requests: list[str] = []
+        self.worker_taps: list[dict] = []        # what the Cloudflare Worker has stored
+        self.worker_mode = "ok"                  # ok | down | ack_fails
+        self.worker_acked: list[dict] = []
+        self.webhook_url = ""                    # set to "<worker>/telegram" to simulate installed Worker
         self.openai_items = [
             ("Introducing GPT-7", "https://openai.com/index/gpt-7", "Today we are releasing GPT-7, a new model.", 2),
             ("Customer story: Acme uses ChatGPT", "https://openai.com/index/acme", "Acme rolled out ChatGPT.", 30),
@@ -141,6 +145,21 @@ class FakeWeb:
             if self.jev_mode == "flaky" and self.jev_calls % 2 == 1:
                 return httpx.Response(429, headers={"retry-after": "0"}, text="slow down")
             return httpx.Response(200, json=self.jev_answer(json.loads(request.content)))
+        if host == "dailynews.test.workers.dev":
+            if request.headers.get("authorization") != "Bearer pull-token":
+                return httpx.Response(401, text="unauthorized")
+            if self.worker_mode == "down":
+                return httpx.Response(503, text="down")
+            if request.method == "GET" and path == "/taps":
+                return httpx.Response(200, json={"taps": list(self.worker_taps)})
+            if request.method == "POST" and path == "/taps/ack":
+                if self.worker_mode == "ack_fails":
+                    raise httpx.ConnectError("boom", request=request)
+                acks = json.loads(request.content)["acks"]
+                self.worker_acked += acks
+                keep = {(a["item_id"], a["at"]) for a in acks}
+                self.worker_taps = [t for t in self.worker_taps if (t["item_id"], t["at"]) not in keep]
+                return httpx.Response(200, json={"deleted": len(acks)})
         if host == "api.telegram.org":
             return self.telegram(path.rsplit("/", 1)[-1], json.loads(request.content or b"{}"))
         return httpx.Response(404, text="not found")
@@ -150,7 +169,11 @@ class FakeWeb:
             self.next_msg_id += 1
             self.tg_sent.append({**body, "message_id": self.next_msg_id})
             return httpx.Response(200, json={"ok": True, "result": {"message_id": self.next_msg_id}})
+        if method == "getWebhookInfo":
+            return httpx.Response(200, json={"ok": True, "result": {"url": self.webhook_url, "pending_update_count": 0}})
         if method == "getUpdates":
+            if self.webhook_url:
+                return httpx.Response(409, json={"ok": False, "description": "Conflict: can't use getUpdates while webhook is active"})
             # Real semantics: an offset confirms (permanently drops) every update below it.
             off = body.get("offset") or 0
             if off:

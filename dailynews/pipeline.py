@@ -14,6 +14,7 @@ from dailynews.config import Profile, Settings
 from dailynews.sources import Source
 from dailynews.sources.base import USER_AGENT
 from dailynews.store import Store, from_iso
+from dailynews.worker_client import WorkerError, sync_from_worker
 from dailynews.telegram import Telegram, TelegramError, esc, format_item, buttons, source_label
 
 log = logging.getLogger(__name__)
@@ -106,7 +107,29 @@ async def run(settings: Settings, profile: Profile, sources: list[Source], *, no
             report.notes.append("TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID not set — nothing will be delivered")
 
         # 1. feedback first, so this run's ranking already reflects new taps
-        if tg and not settings.dry_run:
+        worker_url = settings.worker_url
+        if tg and not settings.dry_run and not worker_url:
+            # Once the Worker is installed, Telegram's webhook points at <worker>/telegram and the
+            # getUpdates queue is unavailable — so discover the Worker from the webhook itself.
+            try:
+                hook = (await tg.call("getWebhookInfo")).get("url") or ""
+                if hook.endswith("/telegram"):
+                    worker_url = hook[: -len("/telegram")]
+                elif hook:
+                    report.notes.append(f"bot webhook points somewhere unexpected ({hook}); taps can't be read")
+            except TelegramError as e:
+                report.notes.append(f"getWebhookInfo failed: {e}")
+        if worker_url and not settings.worker_token and not settings.dry_run:
+            report.notes.append("Worker is installed but STATE_KEY isn't available to the run step — taps can't be read")
+        if worker_url and settings.worker_token and not settings.dry_run:
+            try:
+                fs = await sync_from_worker(http, worker_url, settings.worker_token, store, now)
+                report.feedback, report.telegram = fs["recorded"], fs
+                if fs.get("unknown_items"):
+                    report.notes.append(f"{fs['unknown_items']} tap(s) referenced items no longer in the database")
+            except WorkerError as e:
+                report.notes.append(f"feedback sync (worker) failed: {e}")
+        elif tg and not settings.dry_run and not worker_url:
             try:
                 report.feedback = await tg.sync_feedback(store, now)
                 fs = tg.last_sync

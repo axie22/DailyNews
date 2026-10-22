@@ -41,9 +41,23 @@ hourly cron ─► sync 👍/👎 from Telegram ─► fetch due sources ─► 
    ```
 5. **Merge to the default branch.** Scheduled workflows only run there. Optionally trigger *Actions → dailynews → Run workflow* with `force_digest` checked.
 
+## Instant taps + on-time schedule (Cloudflare Worker, optional, ~15 min)
+
+A free Cloudflare Worker (`worker/`) becomes the bot's webhook. Each tap gets a "Saved 👍" popup and a ✓ within a second, and is stored until the next run collects it. The Worker's cron also triggers the `dailynews` workflow hourly at :23, because GitHub's own scheduler often runs hours late. GitHub's schedule stays as a backup every 3h.
+
+1. **Cloudflare account.** Sign up at dash.cloudflare.com and open **Workers & Pages** once so it gives you a `workers.dev` subdomain. Copy your **Account ID**, shown on the right of that page.
+2. **Cloudflare API token.** Go to My Profile → API Tokens → Create Token → use the **Edit Cloudflare Workers** template → choose your account → create it and copy the token.
+3. **GitHub token for the hourly trigger.** Go to GitHub Settings → Developer settings → Fine-grained tokens → Generate. Set Repository access to *Only DailyNews* and Permissions to **Actions: Read and write**, with nothing else.
+4. **Add three repo secrets:** `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `DISPATCH_TOKEN`.
+5. **Deploy.** Go to Actions → **worker** → Run workflow (action: `deploy`). It tests, creates the KV store, deploys, sets the Worker's secrets, health-checks it, and points the bot at it. The run's annotation shows the live URL.
+
+Nothing else needs copying. The webhook secret and the key the pipeline uses to read taps are derived from `STATE_KEY` + `TELEGRAM_BOT_TOKEN` on both sides, and the pipeline finds the Worker from the bot's webhook URL.
+
+**To undo:** run the **worker** workflow with action `disable`. Telegram goes back to queueing taps, and the pipeline automatically returns to reading them with getUpdates. If you rotate `STATE_KEY` or the bot token, re-run `deploy`.
+
 ## Using it
 
-- **👍/👎** on any item trains the ranker. Taps are collected by the next hourly run (the buttons update to ✓ then). Telegram only holds taps for about 24h, which is why the workflow runs hourly.
+- **👍/👎** on any item trains the ranker. With the Cloudflare Worker installed (below), the button turns ✓ instantly. Without it, taps wait in Telegram's queue (24h max) until the next run collects them.
 - **Tune** `config/profile.yaml`: topic weights, digest size, quality floor (`min_score`), quiet hours, and breaking thresholds. Editing a topic *description* or kind changes the Jev question set. Your rated items then get re-classified automatically (cost: pennies) so the ranker retrains on consistent features. Weight changes need no re-classification.
 - **Sources** are in `config/sources.yaml`. Each has its own polling interval.
 - **Local dry run:** `python -m dailynews run --dry-run --force-digest` prints messages instead of sending them.
@@ -60,9 +74,12 @@ hourly cron ─► sync 👍/👎 from Telegram ─► fetch due sources ─► 
 - **Quality floor.** On a slow day the digest is short rather than padded.
 - **GitHub Actions caveats.** Scheduled runs can start late at busy times, and GitHub disables schedules on repos with 60 days of no activity. The hourly state push should count as activity, but if the digest ever stops, check the Actions tab. Reddit often blocks Actions IPs; if so, the footer will say so.
 
+- **Taps (Worker mode):** the Worker accepts only requests carrying the webhook secret and only taps from `TELEGRAM_CHAT_ID`. The latest tap per item wins. The pipeline acknowledges a tap only after saving it, and the Worker deletes it only if it hasn't changed since the pull, so a re-tap mid-run survives. If the Worker is down, Telegram retries delivery, and the run notes the failure without breaking.
+
 ## Development
 
 ```bash
 pip install -e '.[dev]'
-pytest            # offline: fake feeds, fake Jev, fake Telegram, real git for state.sh
+pytest            # offline: fake feeds, fake Jev, fake Telegram, fake Worker, real git for state.sh
+cd worker && npm ci && npm test   # Worker: fake KV + fake Telegram/GitHub
 ```
