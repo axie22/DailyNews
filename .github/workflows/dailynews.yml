@@ -2,10 +2,9 @@ name: dailynews
 
 on:
   schedule:
-    # Hourly. Not for freshness alone: Telegram keeps button taps for only ~24h, and each
-    # run collects them. Sources are throttled individually (config/sources.yaml), and the
-    # digest goes out on the first run at/after digest.hour local time (DST-safe).
-    - cron: "23 * * * *"
+    # Backup only. Once the Cloudflare Worker is installed it triggers this workflow hourly at :23,
+    # on time; GitHub's own scheduler has been running hours late. Overlaps queue (see concurrency).
+    - cron: "47 */3 * * *"
   workflow_dispatch:
     inputs:
       force_digest:
@@ -57,6 +56,8 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           JEV_MODEL: ${{ vars.JEV_MODEL || 'jev-1.13.0' }}
+          # Used to derive the key for reading taps from the Cloudflare Worker (if installed).
+          STATE_KEY: ${{ secrets.STATE_KEY }}
 
       # Always save — even if the run failed after sending messages — so nothing is re-sent.
       # state.sh refuses to push if the restore step didn't succeed.
