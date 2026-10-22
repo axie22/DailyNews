@@ -24,6 +24,13 @@ class FakeWeb:
         self.tg_updates: list[dict] = []
         self.next_msg_id = 100
         self.requests: list[str] = []
+        self.arxiv_pages = None                  # list of (id, title, abstract, hours_ago) to enable paging
+        self.arxiv_starts: list[int] = []
+        self.article_pages = {"/news/claude-5-release": (
+            '<html><head><meta name="description" content="Claude 5 is our most capable model, released '
+            'today with major gains in reasoning and coding."></head><body><nav>menu</nav><article>'
+            '<p>Today we are releasing Claude 5, a new frontier model. It improves on long-horizon agentic '
+            'tasks and was trained with new alignment techniques.</p></article></body></html>')}
         self.worker_taps: list[dict] = []        # what the Cloudflare Worker has stored
         self.worker_mode = "ok"                  # ok | down | ack_fails
         self.worker_acked: list[dict] = []
@@ -52,6 +59,13 @@ class FakeWeb:
             f"<pubDate>{rfc822(self.now - timedelta(hours=h))}</pubDate></item>"
             for t, u, d, h in self.openai_items)
         return f'<?xml version="1.0"?><rss version="2.0"><channel><title>x</title>{items}</channel></rss>'
+
+    def arxiv_feed(self, rows) -> str:
+        entries = "".join(
+            f"<entry><id>http://arxiv.org/abs/{aid}v1</id><title>{t}</title><summary>{a}</summary>"
+            f"<published>{(self.now - timedelta(hours=h)).strftime('%Y-%m-%dT%H:%M:%SZ')}</published></entry>"
+            for aid, t, a, h in rows)
+        return '<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom">' + entries + "</feed>"
 
     def arxiv(self) -> str:
         entries = []
@@ -126,6 +140,12 @@ class FakeWeb:
         host, path = request.url.host, request.url.path
         if host == "openai.com":
             return httpx.Response(200, text=self.rss(), headers={"content-type": "application/rss+xml"})
+        if host == "export.arxiv.org" and self.arxiv_pages is not None:
+            start = int(request.url.params.get("start", 0)); n = int(request.url.params.get("max_results", 100))
+            self.arxiv_starts.append(start)
+            return httpx.Response(200, text=self.arxiv_feed(self.arxiv_pages[start:start + n]))
+        if host == "www.anthropic.com" and path in self.article_pages:
+            return httpx.Response(200, text=self.article_pages[path])
         if host == "export.arxiv.org":
             return httpx.Response(200, text=self.arxiv())
         if host == "huggingface.co" and path == "/api/daily_papers":

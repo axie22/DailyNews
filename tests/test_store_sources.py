@@ -17,8 +17,23 @@ def test_normalize_url_strips_tracking():
 
 
 def test_release_family_collapses_variants():
-    assert release_family("Qwen/Qwen5-72B-Instruct-FP8") == release_family("Qwen/Qwen5-72B") == "qwen/qwen5-72b"
-    assert release_family("Qwen/Qwen5-7B") != release_family("Qwen/Qwen5-72B")
+    # Sizes and quantized/variant builds of one release are one family (one digest item).
+    assert release_family("Qwen/Qwen5-72B-Instruct-FP8") == release_family("Qwen/Qwen5-7B") == "qwen/qwen5"
+    assert release_family("mistralai/Timestral-5M") == release_family("mistralai/Timestral-28M")
+    assert release_family("nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B-NVFP4-LiLiCorr") == "nvidia/nvidia-nemotron-3.5-super-vl"
+    assert release_family("nvidia/NVIDIA-Nemotron-Labs-Dory1.0-4B-MX") == release_family("nvidia/NVIDIA-Nemotron-Labs-Dory1.0-4B")
+    # ...but different models stay apart
+    assert release_family("Qwen/Qwen5-72B") != release_family("Qwen/Qwen3.8-Flash-Next")
+
+
+def test_training_artifacts_are_not_releases():
+    from dailynews.sources.hf_models import is_junk
+    for junk in ["nvidia/GR00T-N1.7-AppleToPlate-cosine40k-checkpoint-15000",
+                 "nvidia/cosmos3-nano-libero10-sdg-export-S5_2_s43", "nvidia/cdf-sim2real-smt-solderlight"]:
+        assert is_junk(junk), junk
+    for real in ["deepseek-ai/DeepSeek-V4.1-Flash-1017", "Qwen/Qwen5-72B-Instruct", "google/gemma-4-27b-it",
+                 "nvidia/Cosmos3-H-Embodied-Nano", "meta-llama/Llama-Guard-5-12B"]:
+        assert not is_junk(real), real
 
 
 def test_arxiv_and_hf_papers_merge_and_lab_upgrades(now):
@@ -88,7 +103,7 @@ async def test_sources_parse_fixtures(web, sources):
     assert got["arxiv"][0].url == "https://arxiv.org/abs/2610.00001"   # version stripped
     hp = got["hf_papers"][0]
     assert hp.lab == "google" and hp.meta["hf_upvotes"] == 87
-    assert {i.meta["family"] for i in got["hf_models"]} == {"qwen/qwen5-72b"}
+    assert {i.meta["family"] for i in got["hf_models"]} == {"qwen/qwen5"}
 
 
 async def test_anthropic_layout_change_raises(web, sources):

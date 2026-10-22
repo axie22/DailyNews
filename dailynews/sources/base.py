@@ -25,6 +25,9 @@ class RawItem:
 class Source(ABC):
     key: str
     min_interval_hours: float = 0.0
+    # "fast": polled hourly for breaking pushes (lab blogs, HF releases).
+    # "full": fetched only in the sweep right before a digest (arXiv, HF papers, community).
+    tier: str = "full"
 
     @abstractmethod
     async def fetch(self, client: httpx.AsyncClient) -> list[RawItem]:

@@ -10,10 +10,20 @@ from dailynews.sources.util import parse_iso
 HF_MODELS_API = "https://huggingface.co/api/models"
 
 # Variant suffixes collapsed when clustering one release's many repos
-# (e.g. Qwen ships -Instruct, -FP8, -AWQ, -GGUF of the same model the same day).
+# (Qwen ships -Instruct, -FP8, -AWQ, -GGUF of the same model the same day; NVIDIA ships
+# -NVFP4-LiLiCorr, -MX, -DFlash2 builds).
 _VARIANT_RE = re.compile(
-    r"[-_.]?(instruct|chat|base|it|pt|fp8|fp4|int4|int8|awq|gptq|gguf|mlx|bnb|4bit|8bit|"
-    r"thinking|preview|hf|bf16|w4a16|w8a8|nvfp4|onnx|eagle\d*)$",
+    r"[-_.]?(instruct|chat|base|it|pt|fp8|fp4|nvfp4|mxfp4|int4|int8|awq|gptq|gguf|mlx|bnb|4bit|8bit|"
+    r"thinking|preview|hf|bf16|w4a16|w8a8|onnx|eagle\d*|mx|lilicorr|dflash\d*|\d+gb)$",
+    re.I,
+)
+# Parameter-count tokens: "-72B", "-5M", "-120B-A12B", "-30B-A3B". Sizes of one release share a family.
+_SIZE_RE = re.compile(r"[-_.]\d+(?:\.\d+)?[MBT](?:[-_.]A\d+(?:\.\d+)?[MB])?(?=$|[-_.])", re.I)
+
+# Training artifacts, not releases: checkpoints, exports, sweeps, internal experiments.
+JUNK_RE = re.compile(
+    r"(checkpoint|ckpt|[-_]step[-_]?\d|[-_]iter\d|[-_]epoch|export|[-_]sdg[-_]|[-_]s\d+_|[-_]seed\d|"
+    r"debug|test|tmp|sweep|ablation|[-_]exp\d|sim2real|libero|[-_]v\d+[-_]\d{5,})",
     re.I,
 )
 
@@ -28,13 +38,29 @@ def base_name(model_id: str) -> str:
 
 
 def release_family(model_id: str) -> str:
-    return base_name(model_id).lower()
+    """Size-agnostic: mistralai/Timestral-5M and -28M -> mistralai/timestral"""
+    org, _, name = base_name(model_id).partition("/")
+    name = _SIZE_RE.sub("", name) or name
+    return f"{org}/{name}".lower()
+
+
+def is_junk(model_id: str) -> bool:
+    return bool(JUNK_RE.search(model_id.partition("/")[2]))
 
 
 class HFModelsSource(Source):
-    def __init__(self, orgs: dict[str, str], min_interval_hours: float = 3.0, per_org: int = 10):
+    """New model repos from frontier orgs: catches open-weight releases with no blog post.
+
+    Filters: training artifacts are dropped by name; orgs that upload constantly (NVIDIA)
+    can require some community traction (`min_likes`). Repos are re-fetched each run, so one
+    below the bar today simply appears once it earns the likes.
+    """
+
+    def __init__(self, orgs: dict[str, str], min_interval_hours: float = 3.0, per_org: int = 25,
+                 min_likes: dict[str, int] | None = None):
         self.orgs = orgs
         self.per_org = per_org
+        self.min_likes = min_likes or {}
         self.min_interval_hours = min_interval_hours
         self.key = "hf_models"
 
@@ -49,9 +75,10 @@ class HFModelsSource(Source):
             except httpx.HTTPError as e:
                 errors.append(f"{org}: {e}")
                 continue
+            floor = int(self.min_likes.get(org, 0))
             for m in resp.json():
                 mid = m.get("id") or m.get("modelId")
-                if not mid:
+                if not mid or is_junk(mid) or int(m.get("likes") or 0) < floor:
                     continue
                 tags = [t for t in (m.get("tags") or []) if ":" not in t][:8]
                 base = base_name(mid)

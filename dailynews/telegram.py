@@ -81,6 +81,8 @@ def format_item(item: dict, rank: int | None = None) -> str:
         if name not in seen and o["source"] != "hf_papers":
             seen.add(name)
             extras.append(f'<a href="{esc(o["url"])}">{esc(name)}</a>')
+    if meta.get("likes") and item.get("source_group") == "hf_models":
+        extras.append(f"♥ {meta['likes']}")
     if meta.get("variants"):
         extras.append(f"+{len(meta['variants'])} variants")
     if extras:
