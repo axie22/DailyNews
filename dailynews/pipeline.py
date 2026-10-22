@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 
@@ -14,6 +14,7 @@ from dailynews.config import Profile, Settings
 from dailynews.sources import Source
 from dailynews.sources.base import USER_AGENT
 from dailynews.store import Store, from_iso
+from dailynews.enrich import enrich_page_items
 from dailynews.worker_client import WorkerError, sync_from_worker
 from dailynews.telegram import Telegram, TelegramError, esc, format_item, buttons, source_label
 
@@ -32,6 +33,7 @@ class RunReport:
     classified_jev: int = 0
     classified_heuristic: int = 0
     breaking_sent: int = 0
+    enriched: int = 0
     digest_sent: bool = False
     digest_reason: str = ""
     notes: list[str] = field(default_factory=list)
@@ -44,8 +46,14 @@ def in_quiet_hours(local: datetime, quiet: list[int]) -> bool:
 
 
 async def ingest(store: Store, sources: list[Source], http: httpx.AsyncClient, now: datetime,
-                 report: RunReport, force: bool = False):
-    due = [s for s in sources if force or store.source_due(s.key, s.min_interval_hours, now)]
+                 report: RunReport, force: bool = False, full: bool = True):
+    """full=False: only 'fast' sources (lab blogs/pages, HF releases) — the hourly breaking check.
+    full=True (digest runs): every source, ignoring polling intervals, for a complete sweep."""
+    if full:
+        due = list(sources)
+    else:
+        due = [s for s in sources if getattr(s, "tier", "full") == "fast"
+               and (force or store.source_due(s.key, s.min_interval_hours, now))]
 
     async def one(src: Source):
         try:
@@ -70,7 +78,7 @@ def _ranker_status(model: ranking.Model) -> str:
 
 
 def _digest_header(local: datetime, picks, notable, n_new: int, health: list[str], usage: tuple[int, int],
-                   model: ranking.Model) -> str:
+                   model: ranking.Model, span_days: int = 1) -> str:
     lines = [f"☀️ <b>ML digest · {local:%a %b %-d}</b>",
              f"{len(picks)} picks from {n_new} new items" if picks else
              f"Nothing cleared the bar today ({n_new} new items)."]
@@ -83,7 +91,8 @@ def _digest_header(local: datetime, picks, notable, n_new: int, health: list[str
         lines.append("\n⚠️ <b>Source issues</b>")
         lines += [f"• {esc(h)}" for h in health[:6]]
     calls, toks = usage
-    lines.append(f"\n<i>Jev 24h: {calls} calls · {toks / 1000:.0f}k tokens · ~${toks / 1e6 * JEV_PRICE_PER_M:.3f}"
+    window = "24h" if span_days == 1 else f"{span_days}d"
+    lines.append(f"\n<i>Jev {window}: {calls} calls · {toks / 1000:.0f}k tokens · ~${toks / 1e6 * JEV_PRICE_PER_M:.3f}"
                  f" · ranker: {_ranker_status(model)}</i>")
     return "\n".join(lines)
 
@@ -144,8 +153,26 @@ async def run(settings: Settings, profile: Profile, sources: list[Source], *, no
             except TelegramError as e:
                 report.notes.append(f"feedback sync failed: {e}")
 
-        # 2. ingest + 3. classify
-        await ingest(store, sources, http, now, report, force=force_fetch)
+        d = profile.digest
+        today = local.date().isoformat()
+        every = int(d.get("every_days", 1))
+        last = store.kv_get("last_digest_date")
+        days_since = (local.date() - date.fromisoformat(last)).days if last else None
+        if force_digest:
+            digest_due = True
+        elif local.hour < d["hour"]:
+            digest_due, report.digest_reason = False, f"before {d['hour']}:00 local"
+        elif days_since is not None and days_since < every:
+            digest_due = False
+            report.digest_reason = "already sent today" if days_since == 0 else f"next digest in {every - days_since} day(s)"
+        else:
+            # ">= every days since the last one" rather than a calendar rule: a missed run sends
+            # the next morning instead of skipping a whole cycle.
+            digest_due = True
+
+        # 2. ingest (full sweep only when a digest is about to go out) + enrich + 3. classify
+        await ingest(store, sources, http, now, report, force=force_fetch, full=digest_due or force_fetch)
+        report.enriched = await enrich_page_items(store, http, now)
         stats = await classify_pending(store, settings, profile, now, http)
         report.classified_jev, report.classified_heuristic = stats.jev, stats.heuristic
         if stats.note:
@@ -155,19 +182,10 @@ async def run(settings: Settings, profile: Profile, sources: list[Source], *, no
         # 4. rank
         from dailynews.classify import current_qset
         model = ranking.train(store.labeled(current_qset(profile)), profile)
-        d = profile.digest
         ranked = ranking.rank(store.candidates(now, d["window_hours"], d["max_age_days"]), profile, model)
 
         if not tg:
             return report
-
-        today = local.date().isoformat()
-        if not force_digest and local.hour < d["hour"]:
-            digest_due, report.digest_reason = False, f"before {d['hour']}:00 local"
-        elif not force_digest and store.kv_get("last_digest_date") == today:
-            digest_due, report.digest_reason = False, "already sent today"
-        else:
-            digest_due = True
 
         # 5. breaking pushes (frontier-lab releases), outside quiet hours. Skipped when the
         #    digest goes out in this same run — the release will lead the digest anyway.
@@ -185,8 +203,10 @@ async def run(settings: Settings, profile: Profile, sources: list[Source], *, no
         # 6. morning digest, once per local day, first run at/after digest.hour
         if digest_due:
             picks, notable = ranking.select_digest(ranked, profile)
-            header = _digest_header(local, picks, notable, store.count_new_since(now - timedelta(hours=24)),
-                                    store.source_health(now), store.usage_since(now - timedelta(hours=24)), model)
+            span = timedelta(days=max(1, days_since or every))
+            header = _digest_header(local, picks, notable, store.count_new_since(now - span),
+                                    store.source_health(now), store.usage_since(now - span), model,
+                                    span_days=span.days)
             await tg.send(header)   # the one message that buzzes your phone
             for r in picks:
                 mid = await tg.send(format_item(r.item), buttons(r.item["id"]), silent=True)

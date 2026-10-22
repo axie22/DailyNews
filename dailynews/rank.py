@@ -13,10 +13,13 @@ import numpy as np
 
 from dailynews.config import Profile
 
-GROUPS = ["lab", "arxiv", "hf_papers", "hf_models", "community"]
+GROUPS = ["lab", "blog", "arxiv", "hf_papers", "hf_models", "community"]
 
 PRIOR = {
+    # Official lab posts (blogs, research pages) vs. lab-affiliated repos/papers. A single +2.0 for
+    # both let NVIDIA training checkpoints outrank Interconnects and Lilian Weng.
     "lab": 2.0,
+    "lab_affiliated": 0.5,
     "interest": 2.0,
     "significance": 2.5,
     "substantive": 1.0,
@@ -29,13 +32,16 @@ PRIOR = {
     "kind:discussion_opinion": -0.6,
     "kind:other_news": -1.2,
     "group:community": -0.2,
+    "group:blog": 1.2,       # writers you hand-picked (Interconnects, Lil'Log, Raschka, math blogs...)
+    "hf_likes": 1.5,         # a flagship open-weights release earns hundreds of likes within a day
+    "reddit": -0.8,          # [P] self-promo posts filled whole weekend digests
 }
 
 MIN_LABELS, MIN_PER_CLASS, FULL_TRUST_AT = 15, 5, 60
 
 
 def feature_names(profile: Profile) -> list[str]:
-    return (["lab", "interest", "significance", "substantive", "hf_upvotes"]
+    return (["lab", "lab_affiliated", "reddit", "interest", "significance", "substantive", "hf_upvotes", "hf_likes"]
             + [f"kind:{k}" for k in profile.kinds]
             + [f"topic:{t}" for t in profile.topics]
             + [f"group:{g}" for g in GROUPS])
@@ -46,13 +52,17 @@ def featurize(item: dict, profile: Profile) -> dict[str, float]:
     weights = profile.topic_weights
     topic_p = a["topic"]["probs"]
     f = {
-        "lab": 1.0 if item.get("lab") else 0.0,
+        "lab": 1.0 if item.get("lab") and item["source_group"] == "lab" else 0.0,
+        "lab_affiliated": 1.0 if item.get("lab") and item["source_group"] != "lab" else 0.0,
+        "reddit": 1.0 if item["source"].startswith("reddit") else 0.0,
         # Expected interest under Jev's topic distribution — uses the full probabilities,
         # not the argmax, so an item that's 40% alignment / 40% agents scores sensibly.
         "interest": sum(weights.get(t, 0.0) * p for t, p in topic_p.items()),
         "significance": float(a["significance"]["norm"]),
         "substantive": float(a["substantive"]["p"]),
         "hf_upvotes": min(1.0, math.log1p(item["meta"].get("hf_upvotes", 0)) / math.log1p(150)),
+        "hf_likes": (min(1.0, math.log1p(int(item["meta"].get("likes") or 0)) / math.log1p(300))
+                     if item["source_group"] == "hf_models" else 0.0),
     }
     for k in profile.kinds:
         f[f"kind:{k}"] = float(a["kind"]["probs"].get(k, 0.0))
@@ -120,30 +130,59 @@ def rank(items: list[dict], profile: Profile, model: Model) -> list[Ranked]:
 
 
 def select_digest(ranked: list[Ranked], profile: Profile) -> tuple[list[Ranked], list[Ranked]]:
-    """Greedy top-N with diversity caps; returns (picks, also_notable)."""
+    """Top-N with diversity caps, plus reserved slots; returns (picks, also_notable).
+
+    `reserve` guarantees a few slots for under-represented interests (e.g. math), filled by
+    that topic's best item if it clears the lower `reserve_floor`. Unused reservations fall
+    back to the general ranking, so a day with no good math paper doesn't get a bad one.
+    """
     d = profile.digest
     caps = d.get("caps", {})
-    picks, rest = [], []
-    per_topic, per_lab, papers = {}, {}, 0
     floor = d.get("min_score", float("-inf"))
-    for r in ranked:
-        if r.score < floor:
-            break  # ranked is sorted, so everything after is below the floor too
+    reserve = dict(d.get("reserve", {}))
+    reserve_floor = d.get("reserve_floor", floor)
+    size = d["size"]
+
+    picks: list[Ranked] = []
+    per_topic: dict[str, int] = {}
+    per_lab: dict[str, int] = {}
+    papers = 0
+
+    def fits(r: Ranked) -> bool:
         topic = r.item["answers"]["topic"]["label"]
         lab = r.item.get("lab")
         is_paper = r.item["source_group"] in ("arxiv", "hf_papers")
-        ok = (len(picks) < d["size"]
-              and per_topic.get(topic, 0) < caps.get("per_topic", 99)
-              and (not lab or per_lab.get(lab, 0) < caps.get("per_lab", 99))
-              and (not is_paper or papers < caps.get("papers", 99)))
-        if ok:
-            picks.append(r)
-            per_topic[topic] = per_topic.get(topic, 0) + 1
-            if lab:
-                per_lab[lab] = per_lab.get(lab, 0) + 1
-            papers += is_paper
-        else:
-            rest.append(r)
+        return (per_topic.get(topic, 0) < caps.get("per_topic", 99)
+                and (not lab or per_lab.get(lab, 0) < caps.get("per_lab", 99))
+                and (not is_paper or papers < caps.get("papers", 99)))
+
+    def take(r: Ranked):
+        nonlocal papers
+        picks.append(r)
+        topic = r.item["answers"]["topic"]["label"]
+        per_topic[topic] = per_topic.get(topic, 0) + 1
+        if r.item.get("lab"):
+            per_lab[r.item["lab"]] = per_lab.get(r.item["lab"], 0) + 1
+        papers += r.item["source_group"] in ("arxiv", "hf_papers")
+
+    # 1) reserved slots first, best item per reserved topic
+    for topic, n in reserve.items():
+        for r in ranked:
+            if n <= 0 or len(picks) >= size:
+                break
+            if r in picks or r.item["answers"]["topic"]["label"] != topic or r.score < reserve_floor:
+                continue
+            if fits(r):
+                take(r)
+                n -= 1
+    # 2) the rest by score
+    for r in ranked:
+        if len(picks) >= size or r.score < floor:
+            break
+        if r not in picks and fits(r):
+            take(r)
+    picks.sort(key=lambda r: r.score, reverse=True)
+    rest = [r for r in ranked if r not in picks and r.score >= floor]
     return picks, rest[: d.get("also_notable", 0)]
 
 

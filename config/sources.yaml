@@ -15,11 +15,17 @@ rss:
   # Alignment Forum posts are cross-posted here; same-title clustering shows each once.
   - {key: lesswrong,       url: "https://www.lesswrong.com/feed.xml?view=curated-rss", group: community}  # verified 2026-10-22
   # Pretraining / post-training / architectures
-  - {key: interconnects,   url: "https://www.interconnects.ai/feed",            group: community}  # verified 2026-10-22
-  - {key: ahead_of_ai,     url: "https://magazine.sebastianraschka.com/feed",   group: community}  # verified 2026-10-22
-  - {key: lilian_weng,     url: "https://lilianweng.github.io/index.xml",       group: community, min_interval_hours: 12}  # verified 2026-10-22
+  - {key: interconnects,   url: "https://www.interconnects.ai/feed",            group: blog}  # verified 2026-10-22
+  - {key: ahead_of_ai,     url: "https://magazine.sebastianraschka.com/feed",   group: blog}  # verified 2026-10-22
+  - {key: lilian_weng,     url: "https://lilianweng.github.io/index.xml",       group: blog}  # verified 2026-10-22
   - {key: hf_blog,         url: "https://huggingface.co/blog/feed.xml",         group: community}  # verified 2026-10-22
-  - {key: reddit_ml,       url: "https://www.reddit.com/r/MachineLearning/top/.rss?t=day", group: community, min_interval_hours: 6}
+  # Math & theory (hand-picked writers). Unverified URLs are checked by `doctor` before merge.
+  - {key: francis_bach,    url: "https://francisbach.com/feed/",                group: blog}
+  - {key: argmin,          url: "https://www.argmin.net/feed",                  group: blog}
+  - {key: terry_tao,       url: "https://terrytao.wordpress.com/feed/",         group: blog}
+  - {key: quanta,          url: "https://www.quantamagazine.org/feed/",         group: community}
+  # Week's top posts, read every other day; already-seen posts are skipped.
+  - {key: reddit_ml,       url: "https://www.reddit.com/r/MachineLearning/top/.rss?t=week", group: community}
 
 # Sites with no RSS feed: their listing pages are scraped (fragile — watch the digest's health footer).
 pages:
@@ -34,6 +40,11 @@ pages:
 # Newest model repos per org on the Hugging Face Hub (catches open-weight releases with no blog post).
 hf_models:
   min_interval_hours: 3
+  per_org: 25
+  # Orgs that upload constantly need some community traction before an upload counts.
+  min_likes:
+    nvidia: 15
+    google: 5
   orgs:
     meta-llama: meta
     google: google
@@ -45,7 +56,7 @@ hf_models:
     xai-org: xai
 
 hf_papers:
-  min_interval_hours: 3
+  days: 3              # one request per day, so an every-other-day sweep misses nothing
   # HF Daily Papers orgs that count as frontier labs (paper.organization.name -> lab)
   org_labs:
     google: google
@@ -61,8 +72,9 @@ hf_papers:
     mistralai: mistral
 
 arxiv:
-  min_interval_hours: 4
-  # stat.ML and math.OC (optimization) added for training/optimization/theory; control-theory papers
-  # in math.OC are tagged off-topic by Jev and ranked out.
-  query: "cat:cs.LG OR cat:cs.AI OR cat:cs.CL OR cat:stat.ML OR cat:math.OC"
-  max_results: 400
+  # stat.ML, math.OC (optimization) and math.ST (statistics theory) for training/optimization/math;
+  # off-topic papers in those (e.g. control theory) are tagged by Jev and ranked out.
+  query: "cat:cs.LG OR cat:cs.AI OR cat:cs.CL OR cat:stat.ML OR cat:math.OC OR cat:math.ST"
+  max_results: 2000    # ~2 days across these categories; paged 500 at a time
+  page_size: 500
+  lookback_days: 3

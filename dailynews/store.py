@@ -252,6 +252,9 @@ class Store:
             meta.setdefault("hf_url", raw.meta.get("hf_url"))
         if raw.group == "hf_models":
             meta["variants"] = sorted(set(meta.get("variants", [])) | {raw.url.rsplit("/", 1)[-1]})[:12]
+            # Traction accumulates after first sight; keep the best seen across the family's repos.
+            meta["likes"] = max(int(meta.get("likes") or 0), int(raw.meta.get("likes") or 0))
+            meta["downloads"] = max(int(meta.get("downloads") or 0), int(raw.meta.get("downloads") or 0))
         # A lab-attributed duplicate (e.g. an HF paper from google) upgrades the canonical item.
         lab = row["lab"] or raw.lab
         content = row["content"] if len(row["content"]) >= len(raw.content or "") else raw.content

@@ -89,7 +89,41 @@ def test_digest_caps(profile):
     ranked = rank.rank(items, profile, rank.Model(rank.feature_names(profile)))
     picks, notable = rank.select_digest(ranked, profile)
     topics = [p.item["answers"]["topic"]["label"] for p in picks]
-    assert topics.count("alignment_safety") <= 3
-    assert sum(1 for p in picks if p.item["lab"] == "qwen") <= 3
-    assert sum(1 for p in picks if p.item["source_group"] in ("arxiv", "hf_papers")) <= 4
+    caps = profile.digest["caps"]
+    assert topics.count("alignment_safety") <= caps["per_topic"]
+    assert sum(1 for p in picks if p.item["lab"] == "qwen") <= caps["per_lab"]
+    assert sum(1 for p in picks if p.item["source_group"] in ("arxiv", "hf_papers")) <= caps["papers"]
     assert len(notable) <= profile.digest["also_notable"]
+
+
+def test_reserved_math_slot_beats_higher_scoring_items_but_respects_floor(profile):
+    profile.raw["digest"].update(size=3, min_score=0, reserve={"ml_math_theory": 1}, reserve_floor=2.0)
+    items = [make_item(i, "alignment_safety", sig=3.5, profile=profile) for i in range(5)]
+    items.append(make_item(50, "ml_math_theory", sig=1.5, profile=profile))
+    model = rank.Model(rank.feature_names(profile))
+    picks, _ = rank.select_digest(rank.rank(items, profile, model), profile)
+    assert 50 in [p.item["id"] for p in picks] and len(picks) == 3
+    # a math item below reserve_floor is NOT forced in
+    profile.raw["digest"]["reserve_floor"] = 99
+    picks, _ = rank.select_digest(rank.rank(items, profile, model), profile)
+    assert 50 not in [p.item["id"] for p in picks]
+
+
+def test_lab_bonus_official_vs_affiliated_and_reddit_penalty(profile):
+    m = rank.Model(rank.feature_names(profile))
+    blog = make_item(1, "pretraining", group="lab", lab="openai", profile=profile)
+    repo = make_item(2, "pretraining", group="hf_models", lab="nvidia", profile=profile)
+    reddit = make_item(3, "pretraining", group="community", profile=profile); reddit["source"] = "reddit_ml"
+    hand_picked = make_item(4, "pretraining", group="blog", profile=profile)
+    s = {i["id"]: m.score(rank.featurize(i, profile)) for i in (blog, repo, reddit, hand_picked)}
+    assert s[1] - s[2] > 1.0            # official post >> lab-affiliated upload
+    assert s[4] > s[3] + 1.5            # hand-picked writer >> reddit
+
+
+def test_hf_likes_lift_flagship_release_over_checkpoint_dump(profile):
+    m = rank.Model(rank.feature_names(profile))
+    flagship = make_item(1, "pretraining", kind="model_release", group="hf_models", lab="deepseek", profile=profile)
+    flagship["meta"] = {"likes": 600}
+    dump = make_item(2, "pretraining", kind="model_release", group="hf_models", lab="nvidia", profile=profile)
+    dump["meta"] = {"likes": 2}
+    assert m.score(rank.featurize(flagship, profile)) - m.score(rank.featurize(dump, profile)) > 1.2
