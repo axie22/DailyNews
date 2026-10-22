@@ -25,12 +25,14 @@ SOURCE_NAMES = {
     "openai": "OpenAI", "deepmind": "Google DeepMind", "google_research": "Google Research",
     "google_ai_blog": "Google AI", "anthropic_news": "Anthropic", "anthropic_research": "Anthropic Research",
     "goodfire_blog": "Goodfire", "goodfire_research": "Goodfire Research",
+    "lesswrong": "LessWrong", "interconnects": "Interconnects", "ahead_of_ai": "Ahead of AI (Raschka)",
+    "lilian_weng": "Lil'Log (Lilian Weng)", "hf_blog": "Hugging Face blog", "thinking_machines": "Thinking Machines",
     "alignment_forum": "Alignment Forum", "bair": "BAIR", "reddit_ml": "r/MachineLearning",
     "arxiv": "arXiv", "hf_papers": "HF Papers", "hf_models": "HF Hub",
 }
 LAB_NAMES = {"openai": "OpenAI", "google": "Google", "anthropic": "Anthropic", "meta": "Meta",
              "mistral": "Mistral", "deepseek": "DeepSeek", "qwen": "Qwen", "nvidia": "NVIDIA", "xai": "xAI",
-             "goodfire": "Goodfire"}
+             "goodfire": "Goodfire", "thinking_machines": "Thinking Machines"}
 KIND_EMOJI = {"model_release": "🚀", "research_paper": "📄", "product_or_api": "🛠", "safety_policy": "🛡",
               "tooling_infra": "🧰", "discussion_opinion": "💬", "other_news": "📰"}
 

@@ -84,7 +84,7 @@ def test_learning_needs_enough_labels_then_phases_in(profile):
 
 def test_digest_caps(profile):
     items = [make_item(i, "alignment_safety", sig=3, profile=profile) for i in range(6)]
-    items += [make_item(10 + i, "llm_training", kind="model_release", sig=2, lab="qwen", group="hf_models",
+    items += [make_item(10 + i, "pretraining", kind="model_release", sig=2, lab="qwen", group="hf_models",
                         profile=profile) for i in range(5)]
     ranked = rank.rank(items, profile, rank.Model(rank.feature_names(profile)))
     picks, notable = rank.select_digest(ranked, profile)

@@ -106,7 +106,7 @@ class FakeWeb:
         topic = ("alignment_safety" if "alignment" in state else
                  "inference_efficiency" if "inference" in state else
                  "driving_robotics" if "driving" in state else
-                 "llm_training" if kind == "model_release" else "other")
+                 "pretraining" if kind == "model_release" else "other")
         sig = {"model_release": 3.2, "research_paper": 2.0, "other_news": 0.4}.get(kind, 1.5)
         if "survey" in state:
             sig = 0.6

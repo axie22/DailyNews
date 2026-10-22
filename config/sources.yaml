@@ -11,6 +11,14 @@ rss:
   - {key: google_ai_blog,  url: "https://blog.google/technology/ai/rss/",       lab: google,    group: lab}
   - {key: alignment_forum, url: "https://www.alignmentforum.org/feed.xml?view=curated-rss", group: community}
   - {key: bair,            url: "https://bair.berkeley.edu/blog/feed.xml",      group: community}
+  # Alignment (curated only: the full LessWrong feed is dozens of mostly non-AI posts a day).
+  # Alignment Forum posts are cross-posted here; same-title clustering shows each once.
+  - {key: lesswrong,       url: "https://www.lesswrong.com/feed.xml?view=curated-rss", group: community}  # verified 2026-10-22
+  # Pretraining / post-training / architectures
+  - {key: interconnects,   url: "https://www.interconnects.ai/feed",            group: community}  # verified 2026-10-22
+  - {key: ahead_of_ai,     url: "https://magazine.sebastianraschka.com/feed",   group: community}  # verified 2026-10-22
+  - {key: lilian_weng,     url: "https://lilianweng.github.io/index.xml",       group: community, min_interval_hours: 12}  # verified 2026-10-22
+  - {key: hf_blog,         url: "https://huggingface.co/blog/feed.xml",         group: community}  # verified 2026-10-22
   - {key: reddit_ml,       url: "https://www.reddit.com/r/MachineLearning/top/.rss?t=day", group: community, min_interval_hours: 6}
 
 # Sites with no RSS feed: their listing pages are scraped (fragile — watch the digest's health footer).
@@ -20,6 +28,8 @@ pages:
   # Goodfire (interpretability). Treated as priority like the frontier labs.
   - {key: goodfire_blog,      url: "https://www.goodfire.com/blog",      lab: goodfire,  group: lab}  # verified 2026-10-19
   - {key: goodfire_research,  url: "https://www.goodfire.com/research",  lab: goodfire,  group: lab}
+  # Thinking Machines Lab (post-training research, e.g. on-policy distillation). No feed.
+  - {key: thinking_machines,  url: "https://thinkingmachines.ai/blog",   lab: thinking_machines, group: lab, min_interval_hours: 6}
 
 # Newest model repos per org on the Hugging Face Hub (catches open-weight releases with no blog post).
 hf_models:
@@ -52,5 +62,7 @@ hf_papers:
 
 arxiv:
   min_interval_hours: 4
-  query: "cat:cs.LG OR cat:cs.AI OR cat:cs.CL"
+  # stat.ML and math.OC (optimization) added for training/optimization/theory; control-theory papers
+  # in math.OC are tagged off-topic by Jev and ranked out.
+  query: "cat:cs.LG OR cat:cs.AI OR cat:cs.CL OR cat:stat.ML OR cat:math.OC"
   max_results: 400

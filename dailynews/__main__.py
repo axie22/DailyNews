@@ -120,7 +120,10 @@ async def cmd_doctor(args) -> int:
             print("  ! TYPESAFE_API_KEY not set — heuristic fallback will be used")
 
         print("── Sources")
+        only = set(args.only.split(",")) if getattr(args, "only", None) else None
         for src in build_sources(load_sources()):
+            if only and src.key not in only:
+                continue
             gha = os.environ.get("GITHUB_ACTIONS") == "true"
             try:
                 items = await src.fetch(http)
@@ -173,6 +176,7 @@ def main() -> None:
     r.add_argument("--dry-run", action="store_true", help="print messages instead of sending; don't mark sent")
     d = sub.add_parser("doctor")
     d.add_argument("--send-test", action="store_true")
+    d.add_argument("--only", help="comma-separated source keys to check")
     sub.add_parser("chat-id")
     args = p.parse_args()
     fn = {"run": cmd_run, "doctor": cmd_doctor, "chat-id": cmd_chat_id}[args.cmd]
