@@ -14,8 +14,9 @@ binding = "TAPS"
 id = "__KV_ID__"
 
 [triggers]
-# Hourly at :23 — kicks the GitHub workflow on time (GitHub's own cron drifts by hours).
-crons = ["23 * * * *"]
+# Every 6 hours at :23 UTC (00/06/12/18) — kicks the GitHub workflow on time (GitHub's own cron
+# drifts by hours). 12:23 UTC = 7:23 ET in winter / 8:23 in summer, just after digest.hour.
+crons = ["23 */6 * * *"]
 
 [observability]
 enabled = true

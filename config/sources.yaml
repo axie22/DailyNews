@@ -1,6 +1,6 @@
 # Source registry. `group` drives diversity caps and a learned per-source preference.
 # `lab` (optional) marks items as frontier-lab priority. `min_interval_hours`
-# throttles how often a source is polled even though the workflow runs hourly.
+# throttles how often a source is polled even though the workflow runs every 6h.
 #
 # verified = confirmed to return a feed/listing when this file was written (2026-10-14).
 

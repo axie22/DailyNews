@@ -2,9 +2,9 @@ name: dailynews
 
 on:
   schedule:
-    # Backup only. Once the Cloudflare Worker is installed it triggers this workflow hourly at :23,
+    # Backup only. Once the Cloudflare Worker is installed it triggers this workflow every 6h at :23,
     # on time; GitHub's own scheduler has been running hours late. Overlaps queue (see concurrency).
-    - cron: "47 */3 * * *"
+    - cron: "47 */12 * * *"
   workflow_dispatch:
     inputs:
       force_digest:

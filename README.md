@@ -3,7 +3,7 @@
 A personal ML news triage bot. It pulls frontier-lab announcements, open-weight model releases, and a full day of arXiv. Each item gets classified with [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) for a fraction of a cent, ranked by a model that learns from your 👍/👎, and delivered to your phone on **Telegram**. It runs on **GitHub Actions** with no server and no laptop.
 
 ```
-hourly cron ─► sync 👍/👎 from Telegram ─► fetch due sources ─► dedup + cluster
+6-hourly cron ─► sync 👍/👎 from Telegram ─► fetch due sources ─► dedup + cluster
            ─► Jev: kind · topic · significance · substantive   (heuristic fallback)
            ─► rank = prior + learned(your ratings) ─► quality floor + diversity caps
            ─► ⚡ breaking push (lab releases, outside quiet hours)
@@ -43,11 +43,11 @@ hourly cron ─► sync 👍/👎 from Telegram ─► fetch due sources ─► 
 
 ## Instant taps + on-time schedule (Cloudflare Worker, optional, ~15 min)
 
-A free Cloudflare Worker (`worker/`) becomes the bot's webhook. Each tap gets a "Saved 👍" popup and a ✓ within a second, and is stored until the next run collects it. The Worker's cron also triggers the `dailynews` workflow hourly at :23, because GitHub's own scheduler often runs hours late. GitHub's schedule stays as a backup every 3h.
+A free Cloudflare Worker (`worker/`) becomes the bot's webhook. Each tap gets a "Saved 👍" popup and a ✓ within a second, and is stored until the next run collects it. The Worker's cron also triggers the `dailynews` workflow every 6 hours at :23 UTC, because GitHub's own scheduler often runs hours late. GitHub's schedule stays as a backup every 12h.
 
 1. **Cloudflare account.** Sign up at dash.cloudflare.com and open **Workers & Pages** once so it gives you a `workers.dev` subdomain. Copy your **Account ID**, shown on the right of that page.
 2. **Cloudflare API token.** Go to My Profile → API Tokens → Create Token → use the **Edit Cloudflare Workers** template → choose your account → create it and copy the token.
-3. **GitHub token for the hourly trigger.** Go to GitHub Settings → Developer settings → Fine-grained tokens → Generate. Set Repository access to *Only DailyNews* and Permissions to **Actions: Read and write**, with nothing else.
+3. **GitHub token for the scheduled trigger.** Go to GitHub Settings → Developer settings → Fine-grained tokens → Generate. Set Repository access to *Only DailyNews* and Permissions to **Actions: Read and write**, with nothing else.
 4. **Add three repo secrets:** `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `DISPATCH_TOKEN`.
 5. **Deploy.** Go to Actions → **worker** → Run workflow (action: `deploy`). It tests, creates the KV store, deploys, sets the Worker's secrets, health-checks it, and points the bot at it. The run's annotation shows the live URL.
 
@@ -79,7 +79,7 @@ Nothing else needs copying. The webhook secret and the key the pipeline uses to 
 - **Pinned model.** `JEV_MODEL` defaults to `jev-1.13.0`, not `jev-latest`, because the ranker learns from Jev's output distribution. To upgrade, set the `JEV_MODEL` repo variable. Rated items aren't auto-re-classified on a model change, so expect a few days of drift.
 - **Breaking pushes** require a frontier-lab source, P(release) ≥ 0.6, real significance, and age under 12h. They're capped per run, suppressed in quiet hours, and skipped when the digest is about to go out.
 - **Quality floor.** On a slow day the digest is short rather than padded.
-- **GitHub Actions caveats.** Scheduled runs can start late at busy times, and GitHub disables schedules on repos with 60 days of no activity. The hourly state push should count as activity, but if the digest ever stops, check the Actions tab. Reddit often blocks Actions IPs; if so, the footer will say so.
+- **GitHub Actions caveats.** Scheduled runs can start late at busy times, and GitHub disables schedules on repos with 60 days of no activity. The scheduled state push should count as activity, but if the digest ever stops, check the Actions tab. Reddit often blocks Actions IPs; if so, the footer will say so.
 
 - **Taps (Worker mode):** the Worker accepts only requests carrying the webhook secret and only taps from `TELEGRAM_CHAT_ID`. The latest tap per item wins. The pipeline acknowledges a tap only after saving it, and the Worker deletes it only if it hasn't changed since the pull, so a re-tap mid-run survives. If the Worker is down, Telegram retries delivery, and the run notes the failure without breaking.
 

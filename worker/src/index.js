@@ -5,7 +5,7 @@
 //   GET  /taps       Pipeline pulls stored taps (Bearer PULL_TOKEN).
 //   POST /taps/ack   Pipeline deletes taps it recorded (only if unchanged since the pull).
 //   GET  /health     Liveness + config check (no secrets revealed).
-//   cron             Dispatches the GitHub workflow hourly (GitHub's own schedule runs late).
+//   cron             Dispatches the GitHub workflow every 6h (GitHub's own schedule runs late).
 //
 // Secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, WEBHOOK_SECRET, PULL_TOKEN, GITHUB_TOKEN
 // Vars:    GITHUB_REPO ("owner/repo"), GITHUB_WORKFLOW ("dailynews.yml"), GITHUB_REF ("main")
