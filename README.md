@@ -79,7 +79,7 @@ Nothing else needs copying. The webhook secret and the key the pipeline uses to 
 - **Pinned model.** `JEV_MODEL` defaults to `jev-1.13.0`, not `jev-latest`, because the ranker learns from Jev's output distribution. To upgrade, set the `JEV_MODEL` repo variable. Rated items aren't auto-re-classified on a model change, so expect a few days of drift.
 - **Breaking pushes** require a frontier-lab source, P(release) ≥ 0.6, real significance, and age under 12h. They're capped per run, suppressed in quiet hours, and skipped when the digest is about to go out.
 - **Quality floor.** On a slow day the digest is short rather than padded.
-- **GitHub Actions caveats.** Scheduled runs can start late at busy times, and GitHub disables schedules on repos with 60 days of no activity. The scheduled state push should count as activity, but if the digest ever stops, check the Actions tab. Reddit often blocks Actions IPs; if so, the footer will say so.
+- **GitHub Actions caveats.** Scheduled runs can start late at busy times, and GitHub disables schedules on repos with 60 days of no activity. The scheduled state push should count as activity, but if the digest ever stops, check the Actions tab.
 
 - **Taps (Worker mode):** the Worker accepts only requests carrying the webhook secret and only taps from `TELEGRAM_CHAT_ID`. The latest tap per item wins. The pipeline acknowledges a tap only after saving it, and the Worker deletes it only if it hasn't changed since the pull, so a re-tap mid-run survives. If the Worker is down, Telegram retries delivery, and the run notes the failure without breaking.
 

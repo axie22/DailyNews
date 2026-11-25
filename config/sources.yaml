@@ -24,8 +24,6 @@ rss:
   - {key: argmin,          url: "https://www.argmin.net/feed",                  group: blog}
   - {key: terry_tao,       url: "https://terrytao.wordpress.com/feed/",         group: blog}
   - {key: quanta,          url: "https://www.quantamagazine.org/feed/",         group: community}
-  # Week's top posts, read every other day; already-seen posts are skipped.
-  - {key: reddit_ml,       url: "https://www.reddit.com/r/MachineLearning/top/.rss?t=week", group: community}
 
 # Sites with no RSS feed: their listing pages are scraped (fragile — watch the digest's health footer).
 pages:
